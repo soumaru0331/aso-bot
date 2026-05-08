@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import aiosqlite
 
 from database import DB_PATH
-from utils.validators import parse_positive_int, parse_time_hhmm
+from utils.validators import parse_positive_int
 from utils.embed_builder import build_recruit_embed
 from scheduler import schedule_notification, schedule_start_mention, cancel_jobs, NOTIFY_MINUTES
 
@@ -17,58 +17,79 @@ JST = timezone(timedelta(hours=9))
 # 日時選択 UI
 # ──────────────────────────────────────────────
 
-class DateSelect(discord.ui.Select):
+class YearMonthSelect(discord.ui.Select):
     def __init__(self):
         now = datetime.now(JST)
-        day_labels = ["今日", "明日", "明後日"]
         options = []
-        for i in range(8):
-            day = now + timedelta(days=i)
-            label = f"{day_labels[i]}（{day.month}/{day.day}）" if i < 3 else f"{day.month}/{day.day}（{i}日後）"
-            options.append(discord.SelectOption(label=label, value=day.strftime("%Y-%m-%d")))
-        super().__init__(placeholder="📅 日付を選択...", options=options, row=0)
+        for i in range(12):
+            month = (now.month - 1 + i) % 12 + 1
+            year = now.year + (now.month - 1 + i) // 12
+            options.append(discord.SelectOption(label=f"{year}年{month}月", value=f"{year}-{month:02d}"))
+        super().__init__(placeholder="📅 年月を選択...", options=options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
-        self.view.selected_date = self.values[0]
+        self.view.selected_year_month = self.values[0]
         await interaction.response.defer()
 
 
-class RoleSelect(discord.ui.RoleSelect):
+class DaySelect(discord.ui.Select):
     def __init__(self):
-        super().__init__(
-            placeholder="🎮 参加可能ロール（任意・選ばなければ全員OK）",
-            min_values=0, max_values=1, row=1
-        )
+        options = [discord.SelectOption(label=f"{d}日", value=str(d)) for d in range(1, 32)]
+        super().__init__(placeholder="📆 日を選択...", options=options, row=1)
 
     async def callback(self, interaction: discord.Interaction):
-        self.view.selected_role = self.values[0] if self.values else None
+        self.view.selected_day = self.values[0]
+        await interaction.response.defer()
+
+
+class HourSelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=f"{h:02d}時", value=str(h)) for h in range(24)]
+        super().__init__(placeholder="🕐 時を選択...", options=options, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_hour = self.values[0]
+        await interaction.response.defer()
+
+
+class MinuteSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="00分", value="0"),
+            discord.SelectOption(label="15分", value="15"),
+            discord.SelectOption(label="30分", value="30"),
+            discord.SelectOption(label="45分", value="45"),
+        ]
+        super().__init__(placeholder="⏱ 分を選択...", options=options, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_minute = self.values[0]
         await interaction.response.defer()
 
 
 class ConfirmDateTimeButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=2)
+        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=4)
 
     async def callback(self, interaction: discord.Interaction):
         v = self.view
-        if v.selected_date is None:
-            await interaction.response.send_message("日付を選択してください。", ephemeral=True)
+        if None in (v.selected_year_month, v.selected_day, v.selected_hour, v.selected_minute):
+            await interaction.response.send_message("年月・日・時・分をすべて選択してください。", ephemeral=True)
             return
 
-        time_val, err = parse_time_hhmm(v.time_str)
-        if err:
-            await interaction.response.send_message(err, ephemeral=True)
+        try:
+            year, month = map(int, v.selected_year_month.split("-"))
+            dt = datetime(year, month, int(v.selected_day), int(v.selected_hour), int(v.selected_minute), tzinfo=JST)
+        except ValueError:
+            await interaction.response.send_message("その月にその日付は存在しません。", ephemeral=True)
             return
 
-        h, m = map(int, time_val.split(":"))
-        dt = datetime(*map(int, v.selected_date.split("-")), h, m, tzinfo=JST)
         if dt <= datetime.now(JST):
             await interaction.response.send_message("過去の日時は指定できません。", ephemeral=True)
             return
 
-        role_name = v.selected_role.name if v.selected_role else None
         recruitment_id, embed, recruit_view = await _create_recruitment(
-            interaction, dt, v.game, v.max_players, role_name, v.cancel_deadline
+            interaction, dt, v.game, v.max_players, v.required_role_name, v.cancel_deadline
         )
         await interaction.response.edit_message(content="✅ 募集を作成しました！", view=None, embed=None)
         message = await interaction.channel.send(embed=embed, view=recruit_view)
@@ -82,16 +103,20 @@ class ConfirmDateTimeButton(discord.ui.Button):
 
 
 class DateTimeSelectView(discord.ui.View):
-    def __init__(self, game: str, max_players: int, cancel_deadline: int, time_str: str):
+    def __init__(self, game: str, max_players: int, cancel_deadline: int, required_role_name: str | None):
         super().__init__(timeout=300)
         self.game = game
         self.max_players = max_players
         self.cancel_deadline = cancel_deadline
-        self.time_str = time_str
-        self.selected_date: str | None = None
-        self.selected_role: discord.Role | None = None
-        self.add_item(DateSelect())
-        self.add_item(RoleSelect())
+        self.required_role_name = required_role_name
+        self.selected_year_month: str | None = None
+        self.selected_day: str | None = None
+        self.selected_hour: str | None = None
+        self.selected_minute: str | None = None
+        self.add_item(YearMonthSelect())
+        self.add_item(DaySelect())
+        self.add_item(HourSelect())
+        self.add_item(MinuteSelect())
         self.add_item(ConfirmDateTimeButton())
 
 
@@ -103,11 +128,12 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
     game = discord.ui.TextInput(
         label="ゲーム名", placeholder="例: Apex Legends", max_length=100, required=True
     )
-    time_input = discord.ui.TextInput(
-        label="開始時間 (HH:MM)", placeholder="例: 21:30", max_length=5, required=True
-    )
     max_players_input = discord.ui.TextInput(
         label="最大人数 (空欄=無制限)", placeholder="例: 5", max_length=3, required=False
+    )
+    required_role_input = discord.ui.TextInput(
+        label="参加可能ロール名 (空欄=全員OK)", placeholder="例: FPSメンバー",
+        max_length=100, required=False
     )
     cancel_deadline_input = discord.ui.TextInput(
         label="辞退期限 (開始X分前まで、空欄=制限なし)", placeholder="例: 30",
@@ -115,11 +141,6 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        _, err = parse_time_hhmm(self.time_input.value)
-        if err:
-            await interaction.response.send_message(err, ephemeral=True)
-            return
-
         max_players, err = parse_positive_int(self.max_players_input.value, "最大人数")
         if err:
             await interaction.response.send_message(err, ephemeral=True)
@@ -130,13 +151,23 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
             await interaction.response.send_message(err, ephemeral=True)
             return
 
+        required_role_name = self.required_role_input.value.strip() or None
+        if required_role_name:
+            role = discord.utils.get(interaction.guild.roles, name=required_role_name)
+            if not role:
+                await interaction.response.send_message(
+                    f"ロール「{required_role_name}」が見つかりません。サーバー内のロール名を正確に入力してください。",
+                    ephemeral=True,
+                )
+                return
+
         view = DateTimeSelectView(
             game=self.game.value.strip(),
             max_players=max_players,
             cancel_deadline=cancel_deadline,
-            time_str=self.time_input.value.strip(),
+            required_role_name=required_role_name,
         )
-        await interaction.response.send_message("日付とロールを選んでください：", view=view, ephemeral=True)
+        await interaction.response.send_message("開始日時を選んでください：", view=view, ephemeral=True)
 
 
 # ──────────────────────────────────────────────
