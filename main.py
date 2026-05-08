@@ -6,6 +6,7 @@ import aiosqlite
 from config import TOKEN
 from database import init_db, DB_PATH
 from scheduler import start_scheduler
+from keep_alive import start_web_server
 
 
 class AsoBot(commands.Bot):
@@ -38,6 +39,7 @@ class AsoBot(commands.Bot):
 
 
 async def main():
+    start_web_server()
     bot = AsoBot()
     async with bot:
         await bot.start(TOKEN)
