@@ -6,11 +6,103 @@ from datetime import datetime, timezone, timedelta
 import aiosqlite
 
 from database import DB_PATH
-from utils.validators import parse_scheduled_time, parse_positive_int, parse_time_hhmm
+from utils.validators import parse_positive_int, parse_time_hhmm
 from utils.embed_builder import build_recruit_embed
 from scheduler import schedule_notification, schedule_start_mention, cancel_jobs, NOTIFY_MINUTES
 
 JST = timezone(timedelta(hours=9))
+
+
+# ──────────────────────────────────────────────
+# 日時選択 UI
+# ──────────────────────────────────────────────
+
+class DateSelect(discord.ui.Select):
+    def __init__(self):
+        now = datetime.now(JST)
+        day_labels = ["今日", "明日", "明後日"]
+        options = []
+        for i in range(8):
+            day = now + timedelta(days=i)
+            label = f"{day_labels[i]}（{day.month}/{day.day}）" if i < 3 else f"{day.month}/{day.day}（{i}日後）"
+            options.append(discord.SelectOption(label=label, value=day.strftime("%Y-%m-%d")))
+        super().__init__(placeholder="📅 日付を選択...", options=options, row=0)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_date = self.values[0]
+        await interaction.response.defer()
+
+
+class HourSelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=f"{h:02d}時", value=str(h)) for h in range(24)]
+        super().__init__(placeholder="🕐 時を選択...", options=options, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_hour = self.values[0]
+        await interaction.response.defer()
+
+
+class MinuteSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="00分", value="0"),
+            discord.SelectOption(label="30分", value="30"),
+        ]
+        super().__init__(placeholder="⏱ 分を選択...", options=options, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_minute = self.values[0]
+        await interaction.response.defer()
+
+
+class ConfirmDateTimeButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        v = self.view
+        if v.selected_date is None or v.selected_hour is None or v.selected_minute is None:
+            await interaction.response.send_message("日付・時・分をすべて選択してください。", ephemeral=True)
+            return
+
+        dt = datetime(
+            *map(int, v.selected_date.split("-")),
+            int(v.selected_hour), int(v.selected_minute),
+            tzinfo=JST,
+        )
+        if dt <= datetime.now(JST):
+            await interaction.response.send_message("過去の日時は指定できません。", ephemeral=True)
+            return
+
+        recruitment_id, embed, recruit_view = await _create_recruitment(
+            interaction, dt, v.game, v.max_players, v.required_role_name, v.cancel_deadline
+        )
+        await interaction.response.edit_message(content="✅ 募集を作成しました！", view=None, embed=None)
+        message = await interaction.channel.send(embed=embed, view=recruit_view)
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE recruitments SET message_id = ? WHERE id = ?",
+                (str(message.id), recruitment_id),
+            )
+            await db.commit()
+
+
+class DateTimeSelectView(discord.ui.View):
+    def __init__(self, game: str, max_players: int, required_role_name: str | None, cancel_deadline: int):
+        super().__init__(timeout=300)
+        self.game = game
+        self.max_players = max_players
+        self.required_role_name = required_role_name
+        self.cancel_deadline = cancel_deadline
+        self.selected_date: str | None = None
+        self.selected_hour: str | None = None
+        self.selected_minute: str | None = None
+        self.add_item(DateSelect())
+        self.add_item(HourSelect())
+        self.add_item(MinuteSelect())
+        self.add_item(ConfirmDateTimeButton())
 
 
 # ──────────────────────────────────────────────
@@ -20,10 +112,6 @@ JST = timezone(timedelta(hours=9))
 class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
     game = discord.ui.TextInput(
         label="ゲーム名", placeholder="例: Apex Legends", max_length=100, required=True
-    )
-    scheduled_time_input = discord.ui.TextInput(
-        label="開始日時 (YYYY/MM/DD HH:MM)", placeholder="例: 2026/05/10 21:00",
-        max_length=16, required=True
     )
     max_players_input = discord.ui.TextInput(
         label="最大人数 (空欄=無制限)", placeholder="例: 5", max_length=3, required=False
@@ -38,11 +126,6 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        scheduled_time, err = parse_scheduled_time(self.scheduled_time_input.value)
-        if err:
-            await interaction.response.send_message(err, ephemeral=True)
-            return
-
         max_players, err = parse_positive_int(self.max_players_input.value, "最大人数")
         if err:
             await interaction.response.send_message(err, ephemeral=True)
@@ -63,61 +146,13 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
                 )
                 return
 
-        now_iso = datetime.now(timezone.utc).isoformat()
-        scheduled_iso = scheduled_time.isoformat()
-
-        async with aiosqlite.connect(DB_PATH) as db:
-            cursor = await db.execute(
-                "INSERT INTO recruitments "
-                "(guild_id, channel_id, creator_id, game, scheduled_time, max_players, "
-                "required_role_name, cancel_deadline_minutes, status, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
-                (
-                    str(interaction.guild_id), str(interaction.channel_id),
-                    str(interaction.user.id), self.game.value.strip(),
-                    scheduled_iso, max_players, required_role_name, cancel_deadline, now_iso,
-                ),
-            )
-            recruitment_id = cursor.lastrowid
-
-            for minutes in NOTIFY_MINUTES:
-                await db.execute(
-                    "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, ?, 0)",
-                    (recruitment_id, minutes),
-                )
-            # 開始時刻メンション用レコード（minutes_before=0）
-            await db.execute(
-                "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, 0, 0)",
-                (recruitment_id,),
-            )
-            await db.commit()
-
-        now_utc = datetime.now(timezone.utc)
-        for minutes in NOTIFY_MINUTES:
-            fire_time = scheduled_time - timedelta(minutes=minutes)
-            if fire_time > now_utc:
-                schedule_notification(interaction.client, recruitment_id, minutes, fire_time)
-        schedule_start_mention(interaction.client, recruitment_id, scheduled_time)
-
-        embed = build_recruit_embed(
+        view = DateTimeSelectView(
             game=self.game.value.strip(),
-            scheduled_time=scheduled_time,
             max_players=max_players,
             required_role_name=required_role_name,
             cancel_deadline=cancel_deadline,
-            creator_id=str(interaction.user.id),
-            participants=[],
         )
-        view = RecruitView(recruitment_id)
-        await interaction.response.send_message(embed=embed, view=view)
-        message = await interaction.original_response()
-
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "UPDATE recruitments SET message_id = ? WHERE id = ?",
-                (str(message.id), recruitment_id),
-            )
-            await db.commit()
+        await interaction.response.send_message("開始日時を選んでください：", view=view, ephemeral=True)
 
 
 # ──────────────────────────────────────────────
@@ -354,6 +389,61 @@ class RecruitView(discord.ui.View):
 # ──────────────────────────────────────────────
 # ヘルパー関数
 # ──────────────────────────────────────────────
+
+async def _create_recruitment(
+    interaction: discord.Interaction,
+    scheduled_time: datetime,
+    game: str,
+    max_players: int,
+    required_role_name: str | None,
+    cancel_deadline: int,
+) -> tuple[int, discord.Embed, "RecruitView"]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    scheduled_iso = scheduled_time.isoformat()
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO recruitments "
+            "(guild_id, channel_id, creator_id, game, scheduled_time, max_players, "
+            "required_role_name, cancel_deadline_minutes, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
+            (
+                str(interaction.guild_id), str(interaction.channel_id),
+                str(interaction.user.id), game,
+                scheduled_iso, max_players, required_role_name, cancel_deadline, now_iso,
+            ),
+        )
+        recruitment_id = cursor.lastrowid
+
+        for minutes in NOTIFY_MINUTES:
+            await db.execute(
+                "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, ?, 0)",
+                (recruitment_id, minutes),
+            )
+        await db.execute(
+            "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, 0, 0)",
+            (recruitment_id,),
+        )
+        await db.commit()
+
+    now_utc = datetime.now(timezone.utc)
+    for minutes in NOTIFY_MINUTES:
+        fire_time = scheduled_time - timedelta(minutes=minutes)
+        if fire_time > now_utc:
+            schedule_notification(interaction.client, recruitment_id, minutes, fire_time)
+    schedule_start_mention(interaction.client, recruitment_id, scheduled_time)
+
+    embed = build_recruit_embed(
+        game=game,
+        scheduled_time=scheduled_time,
+        max_players=max_players,
+        required_role_name=required_role_name,
+        cancel_deadline=cancel_deadline,
+        creator_id=str(interaction.user.id),
+        participants=[],
+    )
+    return recruitment_id, embed, RecruitView(recruitment_id)
+
 
 async def _fetch_recruitment(db: aiosqlite.Connection, recruitment_id: int):
     async with db.execute("SELECT * FROM recruitments WHERE id = ?", (recruitment_id,)) as cursor:
