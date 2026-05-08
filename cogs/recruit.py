@@ -360,6 +360,39 @@ class CancelButton(discord.ui.Button):
 # Persistent View
 # ──────────────────────────────────────────────
 
+class DeleteButton(discord.ui.Button):
+    def __init__(self, recruitment_id: int):
+        super().__init__(
+            label="🗑️ 削除", style=discord.ButtonStyle.danger,
+            custom_id=f"recruit:delete:{recruitment_id}"
+        )
+        self.recruitment_id = recruitment_id
+
+    async def callback(self, interaction: discord.Interaction):
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            recruitment = await _fetch_recruitment(db, self.recruitment_id)
+            if not recruitment:
+                await interaction.response.send_message("この募集は既に削除されています。", ephemeral=True)
+                return
+
+        is_creator = str(interaction.user.id) == recruitment["creator_id"]
+        is_admin = interaction.user.guild_permissions.administrator or \
+                   interaction.user.guild_permissions.manage_guild
+        if not is_creator and not is_admin:
+            await interaction.response.send_message("募集の作成者か管理者のみ削除できます。", ephemeral=True)
+            return
+
+        cancel_jobs(self.recruitment_id)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DELETE FROM participants WHERE recruitment_id = ?", (self.recruitment_id,))
+            await db.execute("DELETE FROM notifications WHERE recruitment_id = ?", (self.recruitment_id,))
+            await db.execute("DELETE FROM recruitments WHERE id = ?", (self.recruitment_id,))
+            await db.commit()
+
+        await interaction.message.delete()
+
+
 class RecruitView(discord.ui.View):
     def __init__(self, recruitment_id: int):
         super().__init__(timeout=None)
@@ -368,6 +401,7 @@ class RecruitView(discord.ui.View):
         self.add_item(LateButton(recruitment_id))
         self.add_item(PartialButton(recruitment_id))
         self.add_item(CancelButton(recruitment_id))
+        self.add_item(DeleteButton(recruitment_id))
 
 
 # ──────────────────────────────────────────────
