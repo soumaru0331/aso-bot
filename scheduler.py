@@ -5,7 +5,7 @@ import aiosqlite
 from database import DB_PATH
 
 scheduler = AsyncIOScheduler(timezone="UTC")
-NOTIFY_MINUTES = [30, 10, 5]
+NOTIFY_MINUTES = [60, 30, 15, 10, 5]
 
 
 def start_scheduler(bot) -> None:

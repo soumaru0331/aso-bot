@@ -32,3 +32,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     sent INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(recruitment_id) REFERENCES recruitments(id)
 );
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY,
+    notify_minutes INTEGER NOT NULL DEFAULT 30
+);
