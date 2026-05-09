@@ -6,11 +6,137 @@ from datetime import datetime, timezone, timedelta
 import aiosqlite
 
 from database import DB_PATH
-from utils.validators import parse_positive_int, parse_scheduled_time, parse_time_hhmm
+from utils.validators import parse_positive_int, parse_time_hhmm
 from utils.embed_builder import build_recruit_embed
 from scheduler import schedule_notification, schedule_start_mention, cancel_jobs, NOTIFY_MINUTES
 
 JST = timezone(timedelta(hours=9))
+
+
+# ──────────────────────────────────────────────
+# 日時選択 UI
+# ──────────────────────────────────────────────
+
+class DateSelect(discord.ui.Select):
+    def __init__(self):
+        now = datetime.now(JST)
+        weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+        options = []
+        for i in range(25):
+            d = now + timedelta(days=i)
+            label = f"{d.month}/{d.day}({weekdays[d.weekday()]})"
+            options.append(discord.SelectOption(label=label, value=d.strftime("%Y-%m-%d")))
+        super().__init__(placeholder="📅 日付を選択...", options=options, row=0)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_date = self.values[0]
+        await interaction.response.defer()
+
+
+class HourSelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=f"{h:02d}時", value=str(h)) for h in range(24)]
+        super().__init__(placeholder="🕐 時を選択...", options=options, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_hour = self.values[0]
+        await interaction.response.defer()
+
+
+class MinuteSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="00分", value="0"),
+            discord.SelectOption(label="15分", value="15"),
+            discord.SelectOption(label="30分", value="30"),
+            discord.SelectOption(label="45分", value="45"),
+        ]
+        super().__init__(placeholder="⏱ 分を選択...", options=options, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_minute = self.values[0]
+        await interaction.response.defer()
+
+
+class NextToRoleButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="次へ ▶", style=discord.ButtonStyle.primary, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        v = self.view
+        if None in (v.selected_date, v.selected_hour, v.selected_minute):
+            await interaction.response.send_message("日付・時・分をすべて選択してください。", ephemeral=True)
+            return
+
+        year, month, day = map(int, v.selected_date.split("-"))
+        dt = datetime(year, month, day, int(v.selected_hour), int(v.selected_minute), tzinfo=JST)
+
+        if dt <= datetime.now(JST):
+            await interaction.response.send_message("過去の日時は指定できません。", ephemeral=True)
+            return
+
+        role_view = RoleSelectView(game=v.game, max_players=v.max_players, cancel_deadline=v.cancel_deadline, dt=dt)
+        await interaction.response.edit_message(content="参加可能ロールを選んでください（任意）：", view=role_view)
+
+
+class DateTimeSelectView(discord.ui.View):
+    def __init__(self, game: str, max_players: int, cancel_deadline: int):
+        super().__init__(timeout=300)
+        self.game = game
+        self.max_players = max_players
+        self.cancel_deadline = cancel_deadline
+        self.selected_date: str | None = None
+        self.selected_hour: str | None = None
+        self.selected_minute: str | None = None
+        self.add_item(DateSelect())
+        self.add_item(HourSelect())
+        self.add_item(MinuteSelect())
+        self.add_item(NextToRoleButton())
+
+
+class RoleSelectMenu(discord.ui.RoleSelect):
+    def __init__(self):
+        super().__init__(
+            placeholder="🎮 参加可能ロール（選ばなければ全員OK）",
+            min_values=0, max_values=1, row=0
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_role = self.values[0] if self.values else None
+        await interaction.response.defer()
+
+
+class ConfirmRecruitButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        v = self.view
+        role_name = v.selected_role.name if v.selected_role else None
+        recruitment_id, embed, recruit_view = await _create_recruitment(
+            interaction, v.dt, v.game, v.max_players, role_name, v.cancel_deadline
+        )
+        await interaction.response.edit_message(content="✅ 募集を作成しました！", view=None, embed=None)
+        message = await interaction.channel.send(embed=embed, view=recruit_view)
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "UPDATE recruitments SET message_id = ? WHERE id = ?",
+                (str(message.id), recruitment_id),
+            )
+            await db.commit()
+
+
+class RoleSelectView(discord.ui.View):
+    def __init__(self, game: str, max_players: int, cancel_deadline: int, dt: datetime):
+        super().__init__(timeout=300)
+        self.game = game
+        self.max_players = max_players
+        self.cancel_deadline = cancel_deadline
+        self.dt = dt
+        self.selected_role: discord.Role | None = None
+        self.add_item(RoleSelectMenu())
+        self.add_item(ConfirmRecruitButton())
 
 
 # ──────────────────────────────────────────────
@@ -21,10 +147,6 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
     game = discord.ui.TextInput(
         label="ゲーム名", placeholder="例: Apex Legends", max_length=100, required=True
     )
-    scheduled_time_input = discord.ui.TextInput(
-        label="開始日時 (YYYY/MM/DD HH:MM)", placeholder="例: 2026/05/10 21:00",
-        max_length=16, required=True
-    )
     max_players_input = discord.ui.TextInput(
         label="最大人数 (空欄=無制限)", placeholder="例: 5", max_length=3, required=False
     )
@@ -32,19 +154,8 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
         label="辞退期限 (開始X分前まで、空欄=制限なし)", placeholder="例: 30",
         max_length=4, required=False
     )
-    role_name_input = discord.ui.TextInput(
-        label="参加ロール名 (空欄=全員OK)", placeholder="例: ゲーマー",
-        max_length=100, required=False
-    )
 
     async def on_submit(self, interaction: discord.Interaction):
-        print(f"[RecruitModal] on_submit: game={self.game.value!r}", flush=True)
-
-        scheduled_time, err = parse_scheduled_time(self.scheduled_time_input.value)
-        if err:
-            await interaction.response.send_message(err, ephemeral=True)
-            return
-
         max_players, err = parse_positive_int(self.max_players_input.value, "最大人数")
         if err:
             await interaction.response.send_message(err, ephemeral=True)
@@ -55,26 +166,12 @@ class RecruitModal(discord.ui.Modal, title="遊ぶ募集を作成"):
             await interaction.response.send_message(err, ephemeral=True)
             return
 
-        role_name = self.role_name_input.value.strip() or None
-
-        await interaction.response.defer(ephemeral=True)
-
-        recruitment_id, embed, recruit_view = await _create_recruitment(
-            interaction, scheduled_time, self.game.value.strip(),
-            max_players, role_name, cancel_deadline
+        view = DateTimeSelectView(
+            game=self.game.value.strip(),
+            max_players=max_players,
+            cancel_deadline=cancel_deadline,
         )
-
-        message = await interaction.channel.send(embed=embed, view=recruit_view)
-
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "UPDATE recruitments SET message_id = ? WHERE id = ?",
-                (str(message.id), recruitment_id),
-            )
-            await db.commit()
-
-        await interaction.followup.send("✅ 募集を作成しました！", ephemeral=True)
-        print(f"[RecruitModal] 募集作成完了: id={recruitment_id}", flush=True)
+        await interaction.response.send_message("開始日時を選んでください：", view=view, ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         import traceback
