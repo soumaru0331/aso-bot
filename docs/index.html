@@ -10,10 +10,18 @@
       font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif;
       background: #1e1f22;
       color: #dbdee1;
-      line-height: 1.6;
+      line-height: 1.7;
     }
-    a { color: #5865f2; text-decoration: none; }
+    a { color: #5865f2; }
     a:hover { text-decoration: underline; }
+    code {
+      background: #111214;
+      color: #5865f2;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9em;
+    }
 
     /* Hero */
     .hero {
@@ -22,19 +30,13 @@
       padding: 80px 20px 60px;
       border-bottom: 1px solid #3f4147;
     }
-    .hero img.logo {
-      width: 100px; height: 100px;
-      border-radius: 50%;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    }
-    .hero h1 { font-size: 2.8rem; color: #fff; margin-bottom: 10px; }
-    .hero p { font-size: 1.15rem; color: #b9bbbe; max-width: 560px; margin: 0 auto 30px; }
+    .hero h1 { font-size: 3rem; color: #fff; margin-bottom: 12px; }
+    .hero p { font-size: 1.15rem; color: #b9bbbe; max-width: 520px; margin: 0 auto 32px; }
     .btn {
       display: inline-block;
       background: #5865f2;
       color: #fff;
-      padding: 14px 36px;
+      padding: 14px 40px;
       border-radius: 8px;
       font-size: 1.05rem;
       font-weight: 700;
@@ -42,87 +44,78 @@
     }
     .btn:hover { background: #4752c4; text-decoration: none; }
 
-    /* Section */
-    section { max-width: 900px; margin: 0 auto; padding: 60px 20px; }
-    section h2 {
-      font-size: 1.8rem; color: #fff;
-      margin-bottom: 30px;
+    /* Wrapper */
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+
+    /* Section title */
+    .section-title {
+      font-size: 1.7rem;
+      color: #fff;
+      margin: 60px 0 28px;
       padding-bottom: 10px;
       border-bottom: 2px solid #5865f2;
     }
 
-    /* Features */
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+    /* Feature grid */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px; }
     .feature {
       background: #2b2d31;
       border: 1px solid #3f4147;
       border-radius: 12px;
-      padding: 24px;
+      padding: 22px;
     }
-    .feature .icon { font-size: 2rem; margin-bottom: 10px; }
-    .feature h3 { color: #fff; margin-bottom: 8px; font-size: 1.05rem; }
-    .feature p { color: #b9bbbe; font-size: 0.9rem; }
+    .feature .icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .feature h3 { color: #fff; margin-bottom: 6px; font-size: 1rem; }
+    .feature p { color: #b9bbbe; font-size: 0.88rem; }
 
-    /* How to use */
-    .steps { counter-reset: step; }
+    /* Step */
     .step {
-      display: flex; align-items: flex-start; gap: 20px;
       background: #2b2d31;
       border: 1px solid #3f4147;
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 16px;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 22px 24px 16px;
     }
     .step-num {
-      counter-increment: step;
-      min-width: 40px; height: 40px;
+      min-width: 36px; height: 36px;
       background: #5865f2;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 1.1rem; color: #fff;
+      font-weight: 700; font-size: 1rem; color: #fff;
       flex-shrink: 0;
     }
-    .step-num::before { content: counter(step); }
-    .step-body h3 { color: #fff; margin-bottom: 6px; }
-    .step-body p { color: #b9bbbe; font-size: 0.92rem; }
-    code {
-      background: #1e1f22; color: #5865f2;
-      padding: 2px 8px; border-radius: 4px;
-      font-family: 'Consolas', monospace; font-size: 0.9em;
+    .step-header h3 { color: #fff; font-size: 1.05rem; }
+    .step-body { padding: 0 24px 22px; }
+    .step-body p { color: #b9bbbe; font-size: 0.92rem; margin-bottom: 16px; }
+    .step-body img {
+      width: 100%;
+      max-width: 540px;
+      border-radius: 10px;
+      border: 1px solid #3f4147;
+      display: block;
     }
 
     /* Commands */
-    .commands { display: flex; flex-direction: column; gap: 12px; }
-    .command {
+    .cmd-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 60px; }
+    .cmd {
       background: #2b2d31;
       border: 1px solid #3f4147;
       border-radius: 10px;
-      padding: 16px 20px;
-      display: flex; align-items: flex-start; gap: 16px;
+      padding: 18px 22px;
     }
-    .command code { font-size: 1rem; white-space: nowrap; }
-    .command p { color: #b9bbbe; font-size: 0.9rem; margin-top: 4px; }
-
-    /* Screenshots */
-    .screenshots {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-    }
-    .screenshots img {
-      width: 100%; border-radius: 10px;
-      border: 1px solid #3f4147;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    }
-    .screenshots .caption {
-      text-align: center; color: #b9bbbe;
-      font-size: 0.85rem; margin-top: 6px;
-    }
+    .cmd code { font-size: 1rem; }
+    .cmd p { color: #b9bbbe; font-size: 0.9rem; margin-top: 6px; }
 
     /* Footer */
     footer {
       text-align: center;
-      padding: 30px 20px;
+      padding: 28px 20px;
       border-top: 1px solid #3f4147;
       color: #72767d;
       font-size: 0.85rem;
@@ -140,117 +133,104 @@
   </a>
 </div>
 
-<!-- Features -->
-<section>
-  <h2>✨ 機能</h2>
+<div class="wrap">
+
+  <!-- Features -->
+  <h2 class="section-title">✨ 機能</h2>
   <div class="features">
     <div class="feature">
       <div class="icon">📋</div>
-      <h3>募集作成</h3>
-      <p><code>/recruit</code> コマンドでゲーム名・人数・開始日時をサクッと入力して募集を作成。</p>
+      <h3>簡単募集作成</h3>
+      <p><code>/recruit</code> でゲーム名・人数・日時をその場で設定して投稿。</p>
     </div>
     <div class="feature">
-      <div class="icon">✅</div>
-      <h3>参加・辞退ボタン</h3>
-      <p>参加・補欠・遅れて参加・途中のみ・辞退をボタン一つで操作。参加者リストがリアルタイム更新。</p>
+      <div class="icon">🔘</div>
+      <h3>ボタンで参加管理</h3>
+      <p>参加・補欠・遅れて参加・途中のみ・辞退をボタン操作で完結。</p>
     </div>
     <div class="feature">
       <div class="icon">⏰</div>
       <h3>DM通知</h3>
-      <p>開始時刻の前にDMで通知。<code>/notify</code> で自分の通知タイミングをカスタマイズ可能。</p>
+      <p>開始前に自動でDM通知。タイミングは <code>/notify</code> で各自カスタマイズ。</p>
     </div>
     <div class="feature">
       <div class="icon">📣</div>
       <h3>開始メンション</h3>
-      <p>開始時刻になると参加者全員をメンション。乗り遅れる心配なし。</p>
+      <p>時間になったらチャンネルで参加者全員をメンション。</p>
     </div>
     <div class="feature">
       <div class="icon">🔒</div>
       <h3>ロール制限</h3>
-      <p>特定のロールを持つメンバーだけに募集を限定することができます。</p>
+      <p>特定ロールのメンバーだけに限定した募集を作成できます。</p>
     </div>
     <div class="feature">
       <div class="icon">🚫</div>
       <h3>辞退期限</h3>
-      <p>「開始30分前まで辞退可能」のような辞退期限を設定して、直前のドタキャンを防止。</p>
+      <p>「開始30分前まで辞退可能」のような辞退期限を設定可能。</p>
     </div>
   </div>
-</section>
 
-<!-- How to use -->
-<section>
-  <h2>📖 使い方</h2>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num"></div>
-      <div class="step-body">
-        <h3>サーバーにBotを追加</h3>
-        <p>上の「サーバーに追加する」ボタンからBotを招待します。</p>
-      </div>
+  <!-- How to use -->
+  <h2 class="section-title">📖 使い方</h2>
+
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <h3>サーバーに Bot を追加</h3>
     </div>
-    <div class="step">
-      <div class="step-num"></div>
-      <div class="step-body">
-        <h3><code>/recruit</code> で募集を作成</h3>
-        <p>ゲーム名・最大人数・辞退期限を入力して送信。続けて開始日時・参加ロール（任意）を選択すると募集が投稿されます。</p>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num"></div>
-      <div class="step-body">
-        <h3>メンバーがボタンで参加</h3>
-        <p>投稿された募集カードのボタンから参加・辞退が可能。参加者リストは自動更新されます。</p>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num"></div>
-      <div class="step-body">
-        <h3>開始時刻に自動メンション</h3>
-        <p>設定した時刻になるとチャンネルで参加者全員がメンションされます。DM通知タイミングは <code>/notify</code> で各自設定できます。</p>
-      </div>
+    <div class="step-body">
+      <p>上の「サーバーに追加する」ボタンからBotを招待します。必要な権限はメッセージ送信・DM送信のみです。</p>
     </div>
   </div>
-</section>
 
-<!-- Commands -->
-<section>
-  <h2>💬 コマンド一覧</h2>
-  <div class="commands">
-    <div class="command">
-      <div>
-        <code>/recruit</code>
-        <p>遊ぶメンバーを募集します。ゲーム名・最大人数・辞退期限・開始日時を設定して募集カードを投稿。</p>
-      </div>
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <h3><code>/recruit</code> で募集情報を入力</h3>
     </div>
-    <div class="command">
-      <div>
-        <code>/notify [タイミング]</code>
-        <p>開始前のDM通知タイミングを設定します。5分前・10分前・15分前・30分前・60分前・オフから選択。デフォルトは30分前。</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Screenshots -->
-<section>
-  <h2>📸 スクリーンショット</h2>
-  <div class="screenshots">
-    <div>
-      <img src="images/recruit_card.png" alt="募集カード">
-      <p class="caption">募集カードとボタン</p>
-    </div>
-    <div>
+    <div class="step-body">
+      <p>ゲーム名・最大人数・辞退期限を入力して送信します。最大人数と辞退期限は空欄でもOKです。</p>
       <img src="images/modal.png" alt="募集作成モーダル">
-      <p class="caption">募集作成モーダル</p>
-    </div>
-    <div>
-      <img src="images/role_select.png" alt="ロール選択">
-      <p class="caption">ロール選択画面</p>
     </div>
   </div>
-</section>
 
-<!-- Footer -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <h3>開始日時・参加ロールを選択</h3>
+    </div>
+    <div class="step-body">
+      <p>ドロップダウンで日付・時・分を選択。次に参加を限定したいロールを選びます（任意）。「確定」を押すと募集が投稿されます。</p>
+      <img src="images/role_select.png" alt="ロール選択画面">
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <h3>メンバーがボタンで参加・開始時刻にメンション</h3>
+    </div>
+    <div class="step-body">
+      <p>投稿された募集カードのボタンから参加・辞退が可能。時間になると参加者全員がメンションされます。</p>
+      <img src="images/recruit_card.png" alt="募集カードと開始メンション">
+    </div>
+  </div>
+
+  <!-- Commands -->
+  <h2 class="section-title">💬 コマンド一覧</h2>
+  <div class="cmd-list">
+    <div class="cmd">
+      <code>/recruit</code>
+      <p>遊ぶメンバーを募集します。ゲーム名・最大人数・辞退期限・開始日時・参加ロールを設定して募集カードを投稿。</p>
+    </div>
+    <div class="cmd">
+      <code>/notify [タイミング]</code>
+      <p>開始前のDM通知タイミングを個人設定します。5分前・10分前・15分前・30分前（デフォルト）・60分前・オフから選択。</p>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
 <footer>
   <p>aso bot &copy; 2026 &nbsp;|&nbsp; <a href="https://github.com/soumaru0331/aso-bot" target="_blank">GitHub</a></p>
 </footer>
