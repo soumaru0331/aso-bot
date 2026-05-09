@@ -605,6 +605,7 @@ class Recruit(commands.Cog):
 
     @app_commands.command(name="recruit", description="遊ぶメンバーを募集します")
     async def recruit(self, interaction: discord.Interaction):
+        print(f"[AsoBot] /recruit called by {interaction.user} in guild {interaction.guild_id}", flush=True)
         await interaction.response.send_modal(RecruitModal())
 
 
