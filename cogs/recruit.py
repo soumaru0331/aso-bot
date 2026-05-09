@@ -46,10 +46,8 @@ class HourSelect(discord.ui.Select):
 class MinuteSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="00分", value="0"),
-            discord.SelectOption(label="15分", value="15"),
-            discord.SelectOption(label="30分", value="30"),
-            discord.SelectOption(label="45分", value="45"),
+            discord.SelectOption(label=f"{m:02d}分", value=str(m))
+            for m in range(0, 60, 5)
         ]
         super().__init__(placeholder="⏱ 分を選択...", options=options, row=2)
 
