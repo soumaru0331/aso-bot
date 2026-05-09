@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import aiosqlite
 
 from database import DB_PATH
-from utils.validators import parse_positive_int
+from utils.validators import parse_positive_int, parse_time_hhmm
 from utils.embed_builder import build_recruit_embed
 from scheduler import schedule_notification, schedule_start_mention, cancel_jobs, NOTIFY_MINUTES
 
