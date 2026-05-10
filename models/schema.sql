@@ -35,5 +35,5 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id TEXT PRIMARY KEY,
-    notify_minutes INTEGER NOT NULL DEFAULT 30
+    notify_minutes INTEGER NOT NULL DEFAULT 10
 );

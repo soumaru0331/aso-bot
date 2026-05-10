@@ -33,7 +33,7 @@ async def send_dm_notification(bot: discord.Client, recruitment_id: int, minutes
                 "SELECT notify_minutes FROM user_settings WHERE user_id = $1",
                 row["user_id"],
             )
-            user_settings[row["user_id"]] = setting["notify_minutes"] if setting else 30
+            user_settings[row["user_id"]] = setting["notify_minutes"] if setting else 10
 
     game = recruitment["game"]
     timestamp = _iso_to_timestamp(recruitment["scheduled_time"])
@@ -112,9 +112,9 @@ class Notifications(commands.Cog):
     @app_commands.choices(minutes=[
         app_commands.Choice(name="オフ（通知しない）", value=0),
         app_commands.Choice(name="5分前", value=5),
-        app_commands.Choice(name="10分前", value=10),
+        app_commands.Choice(name="10分前（デフォルト）", value=10),
         app_commands.Choice(name="15分前", value=15),
-        app_commands.Choice(name="30分前（デフォルト）", value=30),
+        app_commands.Choice(name="30分前", value=30),
         app_commands.Choice(name="60分前", value=60),
     ])
     async def notify(self, interaction: discord.Interaction, minutes: int):
