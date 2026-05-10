@@ -2,47 +2,44 @@ from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
-import aiosqlite
-from database import DB_PATH
+from database import get_pool
 
 
 async def send_dm_notification(bot: discord.Client, recruitment_id: int, minutes_before: int) -> None:
     """参加者に開始X分前DM通知を送る（ユーザー設定に合致する人のみ）。"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM recruitments WHERE id = ?", (recruitment_id,)
-        ) as cursor:
-            recruitment = await cursor.fetchone()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        recruitment = await conn.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", recruitment_id
+        )
         if not recruitment or recruitment["status"] != "open":
             return
 
-        async with db.execute(
+        rows = await conn.fetch(
             "SELECT user_id FROM participants "
-            "WHERE recruitment_id = ? AND join_type IN ('confirmed','late','partial')",
-            (recruitment_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-        await db.execute(
-            "UPDATE notifications SET sent = 1 "
-            "WHERE recruitment_id = ? AND minutes_before = ?",
-            (recruitment_id, minutes_before),
+            "WHERE recruitment_id = $1 AND join_type IN ('confirmed','late','partial')",
+            recruitment_id,
         )
-        await db.commit()
+
+        await conn.execute(
+            "UPDATE notifications SET sent = 1 "
+            "WHERE recruitment_id = $1 AND minutes_before = $2",
+            recruitment_id, minutes_before,
+        )
+
+        user_settings: dict[str, int] = {}
+        for row in rows:
+            setting = await conn.fetchrow(
+                "SELECT notify_minutes FROM user_settings WHERE user_id = $1",
+                row["user_id"],
+            )
+            user_settings[row["user_id"]] = setting["notify_minutes"] if setting else 30
 
     game = recruitment["game"]
     timestamp = _iso_to_timestamp(recruitment["scheduled_time"])
 
     for row in rows:
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT notify_minutes FROM user_settings WHERE user_id = ?",
-                (row["user_id"],),
-            ) as cursor:
-                setting = await cursor.fetchone()
-        user_notify = setting["notify_minutes"] if setting else 30
+        user_notify = user_settings[row["user_id"]]
         if user_notify == 0 or user_notify != minutes_before:
             continue
 
@@ -58,31 +55,29 @@ async def send_dm_notification(bot: discord.Client, recruitment_id: int, minutes
 
 async def send_start_mention(bot: discord.Client, recruitment_id: int) -> None:
     """開始時刻にチャンネルで参加者全員をメンション。"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM recruitments WHERE id = ?", (recruitment_id,)
-        ) as cursor:
-            recruitment = await cursor.fetchone()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        recruitment = await conn.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", recruitment_id
+        )
         if not recruitment or recruitment["status"] != "open":
             return
 
-        async with db.execute(
+        rows = await conn.fetch(
             "SELECT user_id FROM participants "
-            "WHERE recruitment_id = ? AND join_type IN ('confirmed','late','partial')",
-            (recruitment_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
+            "WHERE recruitment_id = $1 AND join_type IN ('confirmed','late','partial')",
+            recruitment_id,
+        )
 
-        await db.execute(
-            "UPDATE recruitments SET status = 'closed' WHERE id = ?", (recruitment_id,)
-        )
-        await db.execute(
-            "UPDATE notifications SET sent = 1 "
-            "WHERE recruitment_id = ? AND minutes_before = 0",
-            (recruitment_id,),
-        )
-        await db.commit()
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE recruitments SET status = 'closed' WHERE id = $1", recruitment_id
+            )
+            await conn.execute(
+                "UPDATE notifications SET sent = 1 "
+                "WHERE recruitment_id = $1 AND minutes_before = 0",
+                recruitment_id,
+            )
 
     if not rows:
         return
@@ -123,13 +118,12 @@ class Notifications(commands.Cog):
         app_commands.Choice(name="60分前", value=60),
     ])
     async def notify(self, interaction: discord.Interaction, minutes: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "INSERT INTO user_settings (user_id, notify_minutes) VALUES (?, ?) "
-                "ON CONFLICT(user_id) DO UPDATE SET notify_minutes = ?",
-                (str(interaction.user.id), minutes, minutes),
-            )
-            await db.commit()
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO user_settings (user_id, notify_minutes) VALUES ($1, $2) "
+            "ON CONFLICT(user_id) DO UPDATE SET notify_minutes = $2",
+            str(interaction.user.id), minutes,
+        )
 
         if minutes == 0:
             msg = "🔕 DM通知をオフにしました。"

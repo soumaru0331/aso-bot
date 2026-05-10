@@ -3,9 +3,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone, timedelta
-import aiosqlite
 
-from database import DB_PATH
+from database import get_pool
 from utils.validators import parse_positive_int, parse_time_hhmm
 from utils.embed_builder import build_recruit_embed
 from scheduler import schedule_notification, schedule_start_mention, cancel_jobs, NOTIFY_MINUTES
@@ -130,12 +129,11 @@ class ConfirmRecruitButton(discord.ui.Button):
         mention = v.mention_role.mention if v.mention_role else None
         message = await interaction.channel.send(content=mention, embed=embed, view=recruit_view)
 
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "UPDATE recruitments SET message_id = ? WHERE id = ?",
-                (str(message.id), recruitment_id),
-            )
-            await db.commit()
+        pool = await get_pool()
+        await pool.execute(
+            "UPDATE recruitments SET message_id = $1 WHERE id = $2",
+            str(message.id), recruitment_id,
+        )
 
 
 class RoleSelectView(discord.ui.View):
@@ -215,15 +213,14 @@ class LateModal(discord.ui.Modal, title="遅れて参加"):
         now_iso = datetime.now(timezone.utc).isoformat()
         reason = self.reason.value.strip() or None
 
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "INSERT INTO participants (recruitment_id, user_id, join_type, reason, joined_at) "
-                "VALUES (?, ?, 'late', ?, ?) "
-                "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                "join_type='late', reason=?, available_until=NULL, joined_at=?",
-                (self.recruitment_id, str(interaction.user.id), reason, now_iso, reason, now_iso),
-            )
-            await db.commit()
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO participants (recruitment_id, user_id, join_type, reason, joined_at) "
+            "VALUES ($1, $2, 'late', $3, $4) "
+            "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
+            "join_type='late', reason=$3, available_until=NULL, joined_at=$4",
+            self.recruitment_id, str(interaction.user.id), reason, now_iso,
+        )
 
         embed = await _build_embed_from_db(self.recruitment_id)
         view = RecruitView(self.recruitment_id)
@@ -258,16 +255,14 @@ class PartialModal(discord.ui.Modal, title="途中のみ参加"):
         now_iso = datetime.now(timezone.utc).isoformat()
         reason = self.reason.value.strip() or None
 
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "INSERT INTO participants (recruitment_id, user_id, join_type, reason, available_until, joined_at) "
-                "VALUES (?, ?, 'partial', ?, ?, ?) "
-                "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                "join_type='partial', reason=?, available_until=?, joined_at=?",
-                (self.recruitment_id, str(interaction.user.id), reason, available_until, now_iso,
-                 reason, available_until, now_iso),
-            )
-            await db.commit()
+        pool = await get_pool()
+        await pool.execute(
+            "INSERT INTO participants (recruitment_id, user_id, join_type, reason, available_until, joined_at) "
+            "VALUES ($1, $2, 'partial', $3, $4, $5) "
+            "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
+            "join_type='partial', reason=$3, available_until=$4, joined_at=$5",
+            self.recruitment_id, str(interaction.user.id), reason, available_until, now_iso,
+        )
 
         embed = await _build_embed_from_db(self.recruitment_id)
         view = RecruitView(self.recruitment_id)
@@ -288,25 +283,28 @@ class JoinButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
-            if not recruitment or recruitment["status"] != "open":
-                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                return
-            if not await _check_role(interaction, recruitment["required_role_name"]):
-                return
-            if not await _check_capacity(interaction, db, self.recruitment_id, recruitment["max_players"]):
-                return
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                recruitment = await conn.fetchrow(
+                    "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+                )
+                if not recruitment or recruitment["status"] != "open":
+                    await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                    return
+                if not await _check_role(interaction, recruitment["required_role_name"]):
+                    return
+                if not await _check_capacity(interaction, conn, self.recruitment_id, recruitment["max_players"]):
+                    return
 
-            now_iso = datetime.now(timezone.utc).isoformat()
-            await db.execute(
-                "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) VALUES (?, ?, 'confirmed', ?) "
-                "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                "join_type='confirmed', reason=NULL, available_until=NULL, joined_at=?",
-                (self.recruitment_id, str(interaction.user.id), now_iso, now_iso),
-            )
-            await db.commit()
+                now_iso = datetime.now(timezone.utc).isoformat()
+                await conn.execute(
+                    "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
+                    "VALUES ($1, $2, 'confirmed', $3) "
+                    "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
+                    "join_type='confirmed', reason=NULL, available_until=NULL, joined_at=$3",
+                    self.recruitment_id, str(interaction.user.id), now_iso,
+                )
 
         embed = await _build_embed_from_db(self.recruitment_id)
         await interaction.response.edit_message(embed=embed, view=self.view)
@@ -321,9 +319,11 @@ class SubButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            recruitment = await conn.fetchrow(
+                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+            )
             if not recruitment or recruitment["status"] != "open":
                 await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
                 return
@@ -331,13 +331,13 @@ class SubButton(discord.ui.Button):
                 return
 
             now_iso = datetime.now(timezone.utc).isoformat()
-            await db.execute(
-                "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) VALUES (?, ?, 'substitute', ?) "
+            await conn.execute(
+                "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
+                "VALUES ($1, $2, 'substitute', $3) "
                 "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                "join_type='substitute', reason=NULL, available_until=NULL, joined_at=?",
-                (self.recruitment_id, str(interaction.user.id), now_iso, now_iso),
+                "join_type='substitute', reason=NULL, available_until=NULL, joined_at=$3",
+                self.recruitment_id, str(interaction.user.id), now_iso,
             )
-            await db.commit()
 
         embed = await _build_embed_from_db(self.recruitment_id)
         await interaction.response.edit_message(embed=embed, view=self.view)
@@ -352,14 +352,15 @@ class LateButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
-            if not recruitment or recruitment["status"] != "open":
-                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                return
-            if not await _check_role(interaction, recruitment["required_role_name"]):
-                return
+        pool = await get_pool()
+        recruitment = await pool.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+        )
+        if not recruitment or recruitment["status"] != "open":
+            await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+            return
+        if not await _check_role(interaction, recruitment["required_role_name"]):
+            return
         modal = LateModal(self.recruitment_id, interaction.message)
         await interaction.response.send_modal(modal)
 
@@ -373,14 +374,15 @@ class PartialButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
-            if not recruitment or recruitment["status"] != "open":
-                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                return
-            if not await _check_role(interaction, recruitment["required_role_name"]):
-                return
+        pool = await get_pool()
+        recruitment = await pool.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+        )
+        if not recruitment or recruitment["status"] != "open":
+            await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+            return
+        if not await _check_role(interaction, recruitment["required_role_name"]):
+            return
         modal = PartialModal(self.recruitment_id, interaction.message)
         await interaction.response.send_modal(modal)
 
@@ -394,20 +396,21 @@ class CancelButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            recruitment = await conn.fetchrow(
+                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+            )
             if not recruitment or recruitment["status"] != "open":
                 await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
                 return
             if not await _check_cancel_deadline(interaction, recruitment):
                 return
 
-            await db.execute(
-                "DELETE FROM participants WHERE recruitment_id = ? AND user_id = ?",
-                (self.recruitment_id, str(interaction.user.id)),
+            await conn.execute(
+                "DELETE FROM participants WHERE recruitment_id = $1 AND user_id = $2",
+                self.recruitment_id, str(interaction.user.id),
             )
-            await db.commit()
 
         embed = await _build_embed_from_db(self.recruitment_id)
         await interaction.response.edit_message(embed=embed, view=self.view)
@@ -426,12 +429,13 @@ class DeleteButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            recruitment = await _fetch_recruitment(db, self.recruitment_id)
-            if not recruitment:
-                await interaction.response.send_message("この募集は既に削除されています。", ephemeral=True)
-                return
+        pool = await get_pool()
+        recruitment = await pool.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+        )
+        if not recruitment:
+            await interaction.response.send_message("この募集は既に削除されています。", ephemeral=True)
+            return
 
         is_creator = str(interaction.user.id) == recruitment["creator_id"]
         is_admin = interaction.user.guild_permissions.administrator or \
@@ -441,11 +445,17 @@ class DeleteButton(discord.ui.Button):
             return
 
         cancel_jobs(self.recruitment_id)
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("DELETE FROM participants WHERE recruitment_id = ?", (self.recruitment_id,))
-            await db.execute("DELETE FROM notifications WHERE recruitment_id = ?", (self.recruitment_id,))
-            await db.execute("DELETE FROM recruitments WHERE id = ?", (self.recruitment_id,))
-            await db.commit()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM participants WHERE recruitment_id = $1", self.recruitment_id
+                )
+                await conn.execute(
+                    "DELETE FROM notifications WHERE recruitment_id = $1", self.recruitment_id
+                )
+                await conn.execute(
+                    "DELETE FROM recruitments WHERE id = $1", self.recruitment_id
+                )
 
         await interaction.message.delete()
 
@@ -476,30 +486,29 @@ async def _create_recruitment(
     now_iso = datetime.now(timezone.utc).isoformat()
     scheduled_iso = scheduled_time.isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "INSERT INTO recruitments "
-            "(guild_id, channel_id, creator_id, game, scheduled_time, max_players, "
-            "required_role_name, cancel_deadline_minutes, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
-            (
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "INSERT INTO recruitments "
+                "(guild_id, channel_id, creator_id, game, scheduled_time, max_players, "
+                "required_role_name, cancel_deadline_minutes, status, created_at) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9) RETURNING id",
                 str(interaction.guild_id), str(interaction.channel_id),
                 str(interaction.user.id), game,
                 scheduled_iso, max_players, required_role_name, cancel_deadline, now_iso,
-            ),
-        )
-        recruitment_id = cursor.lastrowid
-
-        for minutes in NOTIFY_MINUTES:
-            await db.execute(
-                "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, ?, 0)",
-                (recruitment_id, minutes),
             )
-        await db.execute(
-            "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES (?, 0, 0)",
-            (recruitment_id,),
-        )
-        await db.commit()
+            recruitment_id = row["id"]
+
+            for minutes in NOTIFY_MINUTES:
+                await conn.execute(
+                    "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES ($1, $2, 0)",
+                    recruitment_id, minutes,
+                )
+            await conn.execute(
+                "INSERT INTO notifications (recruitment_id, minutes_before, sent) VALUES ($1, 0, 0)",
+                recruitment_id,
+            )
 
     now_utc = datetime.now(timezone.utc)
     for minutes in NOTIFY_MINUTES:
@@ -520,11 +529,6 @@ async def _create_recruitment(
     return recruitment_id, embed, RecruitView(recruitment_id)
 
 
-async def _fetch_recruitment(db: aiosqlite.Connection, recruitment_id: int):
-    async with db.execute("SELECT * FROM recruitments WHERE id = ?", (recruitment_id,)) as cursor:
-        return await cursor.fetchone()
-
-
 async def _check_role(interaction: discord.Interaction, required_role_name: str | None) -> bool:
     if not required_role_name:
         return True
@@ -541,18 +545,17 @@ async def _check_role(interaction: discord.Interaction, required_role_name: str 
 
 async def _check_capacity(
     interaction: discord.Interaction,
-    db: aiosqlite.Connection,
+    conn,
     recruitment_id: int,
     max_players: int,
 ) -> bool:
     if max_players == 0:
         return True
-    async with db.execute(
+    count = await conn.fetchval(
         "SELECT COUNT(*) FROM participants "
-        "WHERE recruitment_id = ? AND join_type IN ('confirmed','late','partial')",
-        (recruitment_id,),
-    ) as cursor:
-        count = (await cursor.fetchone())[0]
+        "WHERE recruitment_id = $1 AND join_type IN ('confirmed','late','partial')",
+        recruitment_id,
+    )
     if count >= max_players:
         await interaction.response.send_message(
             "定員に達しています。補欠（🔄）として参加することができます。", ephemeral=True
@@ -578,14 +581,14 @@ async def _check_cancel_deadline(interaction: discord.Interaction, recruitment) 
 
 
 async def _build_embed_from_db(recruitment_id: int) -> discord.Embed:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM recruitments WHERE id = ?", (recruitment_id,)) as cursor:
-            recruitment = await cursor.fetchone()
-        async with db.execute(
-            "SELECT * FROM participants WHERE recruitment_id = ?", (recruitment_id,)
-        ) as cursor:
-            participants = [dict(p) for p in await cursor.fetchall()]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        recruitment = await conn.fetchrow(
+            "SELECT * FROM recruitments WHERE id = $1", recruitment_id
+        )
+        participants = await conn.fetch(
+            "SELECT * FROM participants WHERE recruitment_id = $1", recruitment_id
+        )
 
     scheduled_time = datetime.fromisoformat(recruitment["scheduled_time"])
     if scheduled_time.tzinfo is None:
@@ -598,7 +601,7 @@ async def _build_embed_from_db(recruitment_id: int) -> discord.Embed:
         required_role_name=recruitment["required_role_name"],
         cancel_deadline=recruitment["cancel_deadline_minutes"],
         creator_id=recruitment["creator_id"],
-        participants=participants,
+        participants=[dict(p) for p in participants],
     )
 
 

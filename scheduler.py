@@ -1,8 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import aiosqlite
-from database import DB_PATH
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 NOTIFY_MINUTES = [60, 30, 15, 10, 5]
@@ -16,15 +14,14 @@ def start_scheduler(bot) -> None:
 
 async def _reschedule_pending(bot) -> None:
     """Bot再起動後に未送信通知を再スケジュール。"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT n.recruitment_id, n.minutes_before, r.scheduled_time "
-            "FROM notifications n "
-            "JOIN recruitments r ON n.recruitment_id = r.id "
-            "WHERE n.sent = 0 AND r.status = 'open'"
-        ) as cursor:
-            rows = await cursor.fetchall()
+    from database import get_pool
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT n.recruitment_id, n.minutes_before, r.scheduled_time "
+        "FROM notifications n "
+        "JOIN recruitments r ON n.recruitment_id = r.id "
+        "WHERE n.sent = 0 AND r.status = 'open'"
+    )
 
     now = datetime.now(timezone.utc)
     for row in rows:

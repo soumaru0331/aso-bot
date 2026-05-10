@@ -1,0 +1,27 @@
+[AsoBot] aso bot#2098 としてログインしました
+[AsoBot] 1 サーバーに接続中
+[AsoBot] aso bot#2098 としてログインしました
+[AsoBot] 1 サーバーに接続中
+[AsoBot] aso bot#2098 としてログインしました
+[AsoBot] 1 サーバーに接続中
+Traceback (most recent call last):
+  File "C:\Users\solar\OneDrive\デスクトップ\aso bot\main.py", line 47, in <module>
+  File "C:\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\solar\OneDrive\デスクトップ\aso bot\main.py", line 43, in main
+    async def on_ready(self):
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\solar\AppData\Roaming\Python\Python314\site-packages\discord\client.py", line 778, in start
+    await self.connect(reconnect=reconnect)
+  File "C:\Users\solar\AppData\Roaming\Python\Python314\site-packages\discord\client.py", line 659, in connect
+    await self.ws.poll_event()
+  File "C:\Users\solar\AppData\Roaming\Python\Python314\site-packages\discord\gateway.py", line 646, in poll_event
+    raise ConnectionClosed(self.socket, shard_id=self.shard_id, code=code) from None
+discord.errors.ConnectionClosed: Shard ID None WebSocket closed with 4004

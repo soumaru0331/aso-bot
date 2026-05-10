@@ -2,10 +2,8 @@ import asyncio
 import traceback
 import discord
 from discord.ext import commands
-import aiosqlite
-
 from config import TOKEN
-from database import init_db, DB_PATH
+from database import init_db, get_pool
 from scheduler import start_scheduler
 from keep_alive import start_web_server
 
@@ -22,13 +20,10 @@ class AsoBot(commands.Bot):
         print("[AsoBot] DB初期化完了")
 
         from cogs.recruit import RecruitView
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                "SELECT id FROM recruitments WHERE status = 'open'"
-            ) as cursor:
-                rows = await cursor.fetchall()
-        for (recruitment_id,) in rows:
-            self.add_view(RecruitView(recruitment_id))
+        pool = await get_pool()
+        rows = await pool.fetch("SELECT id FROM recruitments WHERE status = 'open'")
+        for record in rows:
+            self.add_view(RecruitView(record["id"]))
         print(f"[AsoBot] Persistent View {len(rows)}件再登録完了")
 
         await self.load_extension("cogs.recruit")

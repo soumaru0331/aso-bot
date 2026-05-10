@@ -1,0 +1,285 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e5]:
+          - link "Render" [ref=e7] [cursor=pointer]:
+            - /url: /
+            - img "Render" [ref=e8]
+          - button "s s's workspace" [ref=e12] [cursor=pointer]:
+            - generic [ref=e13]:
+              - generic [ref=e14]: s
+              - generic "s's workspace" [ref=e15]
+              - img [ref=e16]
+        - generic [ref=e20]:
+          - navigation [ref=e21]:
+            - list [ref=e22]:
+              - listitem [ref=e23]:
+                - link "aso-bot" [ref=e966] [cursor=pointer]:
+                  - /url: /web/srv-d7v1fgl0lvsc73bqs63g
+                  - img [ref=e967]
+                  - generic [ref=e969]: aso-bot
+                - button [ref=e970] [cursor=pointer]:
+                  - img [ref=e971]
+          - button "Search Ctrl + K" [ref=e31] [cursor=pointer]:
+            - img [ref=e33]
+            - text: Search
+            - generic [ref=e35]:
+              - img [ref=e36]
+              - generic [ref=e38]: Ctrl
+              - generic [ref=e39]: +
+              - generic [ref=e40]: K
+              - generic [ref=e41]: K
+        - generic [ref=e42]:
+          - button "New" [ref=e44] [cursor=pointer]:
+            - generic [ref=e45]:
+              - img [ref=e46]
+              - generic [ref=e48]: New
+          - button "Upgrade" [ref=e50] [cursor=pointer]:
+            - generic [ref=e51]:
+              - img [ref=e52]
+              - generic [ref=e54]: Upgrade
+          - button "Help" [ref=e56] [cursor=pointer]:
+            - img "Help" [ref=e57]
+          - button "s" [ref=e62] [cursor=pointer]:
+            - generic [ref=e64]: s
+      - generic [ref=e65]:
+        - navigation [ref=e973]:
+          - separator [ref=e974]
+          - generic [ref=e975]:
+            - generic [ref=e976]:
+              - link "Dashboard" [ref=e977] [cursor=pointer]:
+                - /url: /
+                - img [ref=e978]
+                - generic [ref=e980]: Dashboard
+              - generic [ref=e981]:
+                - img [ref=e982]
+                - generic [ref=e984]: aso-bot
+            - generic [ref=e985]:
+              - list [ref=e986]:
+                - listitem [ref=e987]:
+                  - link "Events" [ref=e988] [cursor=pointer]:
+                    - /url: /web/srv-d7v1fgl0lvsc73bqs63g/events
+                    - img [ref=e989]
+                    - generic [ref=e996]: Events
+                - listitem [ref=e997]:
+                  - link "Settings" [ref=e998] [cursor=pointer]:
+                    - /url: /web/srv-d7v1fgl0lvsc73bqs63g/settings
+                    - img [ref=e999]
+                    - generic [ref=e1002]: Settings
+              - generic [ref=e1003]:
+                - generic [ref=e1004]: Monitor
+                - list "Monitor" [ref=e1005]:
+                  - listitem [ref=e1006]:
+                    - link "Logs" [ref=e1007] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/logs
+                      - img [ref=e1008]
+                      - generic [ref=e1013]: Logs
+                  - listitem [ref=e1014]:
+                    - link "Metrics" [ref=e1015] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/metrics
+                      - img [ref=e1016]
+                      - generic [ref=e1018]: Metrics
+              - generic [ref=e1019]:
+                - generic [ref=e1020]: Manage
+                - list "Manage" [ref=e1021]:
+                  - listitem [ref=e1022]:
+                    - link "Environment" [ref=e1023] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/env
+                      - img [ref=e1024]
+                      - generic [ref=e1028]: Environment
+                  - listitem [ref=e1029]:
+                    - link "Shell" [ref=e1030] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/shell
+                      - img [ref=e1031]
+                      - generic [ref=e1035]:
+                        - generic [ref=e1036]: Shell
+                        - status [ref=e1039]:
+                          - img [ref=e1040]
+                  - listitem [ref=e1042]:
+                    - link "Scaling" [ref=e1043] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/scaling
+                      - img [ref=e1044]
+                      - generic [ref=e1049]:
+                        - generic [ref=e1050]: Scaling
+                        - status [ref=e1053]:
+                          - img [ref=e1054]
+                  - listitem [ref=e1056]:
+                    - link "Previews" [ref=e1057] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/previews
+                      - img [ref=e1058]
+                      - generic [ref=e1062]: Previews
+                  - listitem [ref=e1063]:
+                    - link "Disk" [ref=e1064] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/disks
+                      - img [ref=e1065]
+                      - generic [ref=e1070]:
+                        - generic [ref=e1071]: Disk
+                        - status [ref=e1074]:
+                          - img [ref=e1075]
+                  - listitem [ref=e1077]:
+                    - link "One-Off Jobs" [ref=e1078] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/jobs
+                      - img [ref=e1079]
+                      - generic [ref=e1085]:
+                        - generic [ref=e1086]: One-Off Jobs
+                        - status [ref=e1089]:
+                          - img [ref=e1090]
+          - generic [ref=e1092]:
+            - alert [ref=e1093]:
+              - img [ref=e1095]
+              - generic [ref=e1099]:
+                - generic [ref=e1100]:
+                  - generic [ref=e1101]: New plans, zero seat fees
+                  - generic [ref=e1102]: We're updating workspace pricing to help teams grow faster. No seat fees, more self-serve features, granular bandwidth billing, and more.
+                - link "Opt-in early" [ref=e1104] [cursor=pointer]:
+                  - /url: /billing/update-plan
+              - button "Close notification" [ref=e1105] [cursor=pointer]:
+                - img [ref=e1106]
+            - generic [ref=e1108]:
+              - button "Collapse items" [expanded] [ref=e1109] [cursor=pointer]:
+                - img [ref=e1110]
+              - list "Footer navigation" [ref=e1112]:
+                - listitem [ref=e1113]:
+                  - link "Changelog" [ref=e1114] [cursor=pointer]:
+                    - /url: https://render.com/changelog
+                    - img [ref=e1115]
+                    - generic [ref=e1120]: Changelog
+                - listitem [ref=e1121]:
+                  - link "Invite a friend" [ref=e1122] [cursor=pointer]:
+                    - /url: /invites
+                    - img [ref=e1123]
+                    - generic [ref=e1125]: Invite a friend
+                - listitem [ref=e1126]:
+                  - button "Contact support" [ref=e1127] [cursor=pointer]:
+                    - img [ref=e1128]
+                    - generic [ref=e1132]: Contact support
+              - link "Render Status" [ref=e1134] [cursor=pointer]:
+                - /url: https://status.render.com
+                - img [ref=e1135]
+                - generic [ref=e1137]: Render Status
+        - generic [ref=e1138]:
+          - banner [ref=e1140]:
+            - generic [ref=e1141]:
+              - generic [ref=e1142]:
+                - img [ref=e1143]
+                - generic [ref=e1145]: Web Service
+              - generic [ref=e1146]:
+                - heading "aso-bot Python 3 Free Upgrade your instance" [level=1] [ref=e1148]:
+                  - generic [ref=e1149]: aso-bot
+                  - generic [ref=e1150]:
+                    - generic [ref=e1151]: Python 3
+                    - link "Free" [ref=e1152] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/plan
+                      - generic [ref=e1153]: Free
+                    - link "Upgrade your instance" [ref=e1154] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/plan
+                      - text: Upgrade your instance
+                      - img [ref=e1156]
+                - generic [ref=e1159]:
+                  - button "Connect" [ref=e1160] [cursor=pointer]:
+                    - generic [ref=e1161]: Connect
+                    - img [ref=e1162]
+                  - button "Manual Deploy" [ref=e1164] [cursor=pointer]:
+                    - generic [ref=e1165]: Manual Deploy
+                    - img [ref=e1166]
+            - generic [ref=e1170]:
+              - generic [ref=e1172]:
+                - generic [ref=e1173]: "Service ID:"
+                - generic "Service ID:" [ref=e1174]:
+                  - generic [ref=e1175]: srv-d7v1fgl0lvsc73bqs63g
+                  - button "Copy" [ref=e1178] [cursor=pointer]:
+                    - img [ref=e1179]
+              - generic [ref=e1182]:
+                - img "GitHub" [ref=e1184]
+                - link "soumaru0331 / aso-bot master" [ref=e1186] [cursor=pointer]:
+                  - /url: https://github.com/soumaru0331/aso-bot/tree/master
+                  - generic [ref=e1187]:
+                    - generic [ref=e1188]: soumaru0331 / aso-bot
+                    - img [ref=e1189]
+                    - generic [ref=e1191]: master
+              - generic "Copy" [ref=e1193]:
+                - link "https://aso-bot-jd0d.onrender.com" [ref=e1195] [cursor=pointer]:
+                  - /url: https://aso-bot-jd0d.onrender.com
+                - button "Copy" [ref=e1198] [cursor=pointer]:
+                  - img [ref=e1199]
+          - main [ref=e1202]:
+            - generic [ref=e1203]:
+              - alert [ref=e1204]:
+                - generic [ref=e1206]:
+                  - img [ref=e1208]
+                  - generic [ref=e1212]:
+                    - generic [ref=e1214]: Your free instance will spin down with inactivity, which can delay requests by 50 seconds or more.
+                    - link "Upgrade now" [ref=e1216] [cursor=pointer]:
+                      - /url: /web/srv-d7v1fgl0lvsc73bqs63g/plan
+              - generic [ref=e1218]:
+                - generic [ref=e1219]:
+                  - generic [ref=e1220]:
+                    - generic [ref=e1221]: May 9, 2026 at 2:05 AM
+                    - generic [ref=e1222]:
+                      - img [ref=e1223]
+                      - generic [ref=e1226]: building
+                  - generic [ref=e1227]:
+                    - link "210816a" [ref=e1228] [cursor=pointer]:
+                      - /url: https://github.com/soumaru0331/aso-bot/commit/210816a85a80e80aa279787acc1e47028e1f8d84
+                    - generic [ref=e1229]: "feat: add keep-alive server and Render/Railway deploy config"
+                - button "Cancel deploy" [ref=e1231] [cursor=pointer]
+              - generic [ref=e1232]:
+                - generic [ref=e1234]:
+                  - generic [ref=e1236]:
+                    - button "All logs" [ref=e1239] [cursor=pointer]:
+                      - generic [ref=e1240]:
+                        - generic [ref=e1241]: All logs
+                        - img [ref=e1242]
+                    - generic [ref=e1245]:
+                      - generic [ref=e1246]: Search
+                      - generic [ref=e1248]:
+                        - img [ref=e1249]
+                        - searchbox "Search" [ref=e1251]
+                    - button "Live tail" [ref=e1254] [cursor=pointer]:
+                      - generic [ref=e1257]:
+                        - img [ref=e1258]
+                        - generic [ref=e1260]: Live tail
+                        - img [ref=e1261]
+                    - button "Maximize" [ref=e1267] [cursor=pointer]:
+                      - img "Maximize" [ref=e1268]
+                    - button "Options" [ref=e1273] [cursor=pointer]:
+                      - img "Options" [ref=e1274]
+                  - listbox [ref=e1278]:
+                    - generic [ref=e1282]:
+                      - generic [ref=e1284]:
+                        - img [ref=e1285]
+                        - text: Awaiting build logs...
+                      - generic [ref=e1288]: New log entries will appear here.
+                - paragraph [ref=e1290]:
+                  - text: Need better ways to work with logs? Try the
+                  - link "Render CLI" [ref=e1291] [cursor=pointer]:
+                    - /url: https://render.com/docs/cli
+                    - img [ref=e1292]
+                    - text: Render CLI
+                  - text: ","
+                  - link "Render MCP Server" [ref=e1295] [cursor=pointer]:
+                    - /url: https://render.com/docs/mcp-server
+                  - text: ", or set up a"
+                  - link "log stream integration" [ref=e1296] [cursor=pointer]:
+                    - /url: https://render.com/docs/log-streams
+                    - text: log stream integration
+                    - img [ref=e1297]
+    - generic:
+      - generic:
+        - generic: "0 services selected:"
+        - generic:
+          - generic:
+            - button:
+              - generic:
+                - img
+              - generic: Move
+              - img
+      - generic:
+        - separator
+        - generic:
+          - generic:
+            - button:
+              - img
+  - iframe [ref=e354]:
+    

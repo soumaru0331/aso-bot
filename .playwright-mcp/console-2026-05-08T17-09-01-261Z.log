@@ -1,0 +1,14 @@
+[     253ms] [ERROR] Failed to load resource: the server responded with a status of 405 () @ https://claude.ai/sentry?o=1158394&p=4504646202490880:0
+[    1428ms] [ERROR] Failed to fetch (a-cdn.anthropic.com) @ https://assets-proxy.anthropic.com/claude-ai/v1/_next/static/chunks/5103-5c746b866cfbf05f.js:11
+[    2104ms] [INFO] [O11Y] [DatadogRUM] Initialized {service: claude-ai, env: production, version: 6c9c73aeb8} @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:1
+[    4049ms] [ERROR] Not signed in with the identity provider. @ https://claude.ai/login?selectAccount=true&returnTo=%2Foauth%2Fauthorize%3Fclient_id%3Ddae2cad8-15c5-43d2-9046-fcaecc135fa4%26response_type%3Dcode%26scope%3Duser%253Aprofile%2Buser%253Ainference%2Buser%253Achat%26redirect_uri%3Dchrome-extension%253A%252F%252Ffcoeoabgfenejglbffodgkkbkcdhcgfn%252Foauth_callback.html%26state%3DFaoJerKUBjDqunTEGyuVVopXHLQbF2LZ-3JJF9utcgk%26code_challenge%3D5N3MopL1gMvi2BghB3HbuurNmPKlrl4sx5Pa6bCB1Xg%26code_challenge_method%3DS256:0
+[   11900ms] [ERROR] [GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token. @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:1
+[   36742ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://claude.ai/v1/privacy-consents?prefix=cookies.:0
+[   40924ms] [ERROR] TypeError: Failed to fetch
+    at a (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:2:23391)
+    at Eh (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:2:227635)
+    at d (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:3:53585)
+    at Array.map (<anonymous>)
+    at o (https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:3:54017)
+    at https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:3:54125 @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:1
+[   41304ms] [INFO] [O11Y] [DatadogRUM] Initialized {service: claude-ai, env: production, version: 6c9c73aeb8} @ https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6eedc03a-UKTLTZJf.js:1
