@@ -95,7 +95,7 @@ class DateTimeSelectView(discord.ui.View):
 class RoleSelectMenu(discord.ui.RoleSelect):
     def __init__(self):
         super().__init__(
-            placeholder="🎮 参加可能ロール（選ばなければ全員OK）",
+            placeholder="🔒 参加可能ロール（選ばなければ全員OK）",
             min_values=0, max_values=1, row=0
         )
 
@@ -104,9 +104,21 @@ class RoleSelectMenu(discord.ui.RoleSelect):
         await interaction.response.defer()
 
 
+class MentionRoleSelect(discord.ui.RoleSelect):
+    def __init__(self):
+        super().__init__(
+            placeholder="📣 メンションするロール（選ばなければなし）",
+            min_values=0, max_values=1, row=1
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.mention_role = self.values[0] if self.values else None
+        await interaction.response.defer()
+
+
 class ConfirmRecruitButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=1)
+        super().__init__(label="✅ 確定", style=discord.ButtonStyle.success, row=2)
 
     async def callback(self, interaction: discord.Interaction):
         v = self.view
@@ -115,7 +127,7 @@ class ConfirmRecruitButton(discord.ui.Button):
             interaction, v.dt, v.game, v.max_players, role_name, v.cancel_deadline
         )
         await interaction.response.edit_message(content="✅ 募集を作成しました！", view=None, embed=None)
-        mention = v.selected_role.mention if v.selected_role else None
+        mention = v.mention_role.mention if v.mention_role else None
         message = await interaction.channel.send(content=mention, embed=embed, view=recruit_view)
 
         async with aiosqlite.connect(DB_PATH) as db:
@@ -134,7 +146,9 @@ class RoleSelectView(discord.ui.View):
         self.cancel_deadline = cancel_deadline
         self.dt = dt
         self.selected_role: discord.Role | None = None
+        self.mention_role: discord.Role | None = None
         self.add_item(RoleSelectMenu())
+        self.add_item(MentionRoleSelect())
         self.add_item(ConfirmRecruitButton())
 
 
