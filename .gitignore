@@ -7,3 +7,7 @@ __pycache__/
 dist/
 build/
 venv/
+.playwright-mcp/
+bot_err.txt
+bot_out.txt
+bot_test.log
