@@ -115,7 +115,8 @@ class ConfirmRecruitButton(discord.ui.Button):
             interaction, v.dt, v.game, v.max_players, role_name, v.cancel_deadline
         )
         await interaction.response.edit_message(content="✅ 募集を作成しました！", view=None, embed=None)
-        message = await interaction.channel.send(embed=embed, view=recruit_view)
+        mention = v.selected_role.mention if v.selected_role else None
+        message = await interaction.channel.send(content=mention, embed=embed, view=recruit_view)
 
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
