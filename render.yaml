@@ -4,6 +4,12 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python -u main.py
+    ignoredPaths:
+      - docs/**
+      - "**/*.md"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.gif"
     envVars:
       - key: DISCORD_TOKEN
         sync: false
