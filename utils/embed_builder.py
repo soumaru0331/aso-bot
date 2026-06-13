@@ -2,6 +2,11 @@ import discord
 from datetime import datetime
 
 
+def _display(p: dict) -> str:
+    name = p.get("display_name")
+    return name if name else f"<@{p['user_id']}>"
+
+
 def build_recruit_embed(
     game: str,
     scheduled_time: datetime,
@@ -10,6 +15,7 @@ def build_recruit_embed(
     cancel_deadline: int,
     creator_id: str,
     participants: list[dict],
+    creator_name: str | None = None,
 ) -> discord.Embed:
     confirmed = [p for p in participants if p["join_type"] == "confirmed"]
     substitutes = [p for p in participants if p["join_type"] == "substitute"]
@@ -36,30 +42,30 @@ def build_recruit_embed(
         value=f"開始{cancel_deadline}分前まで" if cancel_deadline > 0 else "制限なし",
         inline=True,
     )
-    embed.add_field(name="📋 作成者", value=f"<@{creator_id}>", inline=True)
+    embed.add_field(name="📋 作成者", value=creator_name or f"<@{creator_id}>", inline=True)
 
     if confirmed:
         embed.add_field(
             name=f"✅ 参加 ({len(confirmed)})",
-            value="\n".join(f"<@{p['user_id']}>" for p in confirmed),
+            value="\n".join(_display(p) for p in confirmed),
             inline=False,
         )
     if substitutes:
         embed.add_field(
             name=f"🔄 補欠 ({len(substitutes)})",
-            value="\n".join(f"<@{p['user_id']}>" for p in substitutes),
+            value="\n".join(_display(p) for p in substitutes),
             inline=False,
         )
     if late:
         lines = [
-            f"<@{p['user_id']}>" + (f" ({p['reason']})" if p.get("reason") else "")
+            _display(p) + (f" ({p['reason']})" if p.get("reason") else "")
             for p in late
         ]
         embed.add_field(name=f"⏰ 遅れて参加 ({len(late)})", value="\n".join(lines), inline=False)
     if partial:
         lines = []
         for p in partial:
-            line = f"<@{p['user_id']}>"
+            line = _display(p)
             if p.get("available_until"):
                 line += f" ~{p['available_until']}"
             if p.get("reason"):

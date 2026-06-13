@@ -222,7 +222,7 @@ class LateModal(discord.ui.Modal, title="遅れて参加"):
             self.recruitment_id, str(interaction.user.id), reason, now_iso,
         )
 
-        embed = await _build_embed_from_db(self.recruitment_id)
+        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
         view = RecruitView(self.recruitment_id)
         await self.original_message.edit(embed=embed, view=view)
         await interaction.response.send_message("✅ 遅れて参加として登録しました！", ephemeral=True)
@@ -264,7 +264,7 @@ class PartialModal(discord.ui.Modal, title="途中のみ参加"):
             self.recruitment_id, str(interaction.user.id), reason, available_until, now_iso,
         )
 
-        embed = await _build_embed_from_db(self.recruitment_id)
+        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
         view = RecruitView(self.recruitment_id)
         await self.original_message.edit(embed=embed, view=view)
         await interaction.response.send_message("✅ 途中のみ参加として登録しました！", ephemeral=True)
@@ -306,7 +306,7 @@ class JoinButton(discord.ui.Button):
                     self.recruitment_id, str(interaction.user.id), now_iso,
                 )
 
-        embed = await _build_embed_from_db(self.recruitment_id)
+        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 
@@ -339,7 +339,7 @@ class SubButton(discord.ui.Button):
                 self.recruitment_id, str(interaction.user.id), now_iso,
             )
 
-        embed = await _build_embed_from_db(self.recruitment_id)
+        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 
@@ -412,7 +412,7 @@ class CancelButton(discord.ui.Button):
                 self.recruitment_id, str(interaction.user.id),
             )
 
-        embed = await _build_embed_from_db(self.recruitment_id)
+        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 
@@ -525,6 +525,7 @@ async def _create_recruitment(
         cancel_deadline=cancel_deadline,
         creator_id=str(interaction.user.id),
         participants=[],
+        creator_name=interaction.user.display_name,
     )
     return recruitment_id, embed, RecruitView(recruitment_id)
 
@@ -580,7 +581,14 @@ async def _check_cancel_deadline(interaction: discord.Interaction, recruitment) 
     return True
 
 
-async def _build_embed_from_db(recruitment_id: int) -> discord.Embed:
+def _resolve_display_name(guild: discord.Guild | None, user_id: str) -> str | None:
+    if not guild:
+        return None
+    member = guild.get_member(int(user_id))
+    return member.display_name if member else None
+
+
+async def _build_embed_from_db(recruitment_id: int, guild: discord.Guild | None = None) -> discord.Embed:
     pool = await get_pool()
     async with pool.acquire() as conn:
         recruitment = await conn.fetchrow(
@@ -594,6 +602,12 @@ async def _build_embed_from_db(recruitment_id: int) -> discord.Embed:
     if scheduled_time.tzinfo is None:
         scheduled_time = scheduled_time.replace(tzinfo=timezone.utc)
 
+    participant_dicts = []
+    for p in participants:
+        d = dict(p)
+        d["display_name"] = _resolve_display_name(guild, d["user_id"])
+        participant_dicts.append(d)
+
     return build_recruit_embed(
         game=recruitment["game"],
         scheduled_time=scheduled_time,
@@ -601,7 +615,8 @@ async def _build_embed_from_db(recruitment_id: int) -> discord.Embed:
         required_role_name=recruitment["required_role_name"],
         cancel_deadline=recruitment["cancel_deadline_minutes"],
         creator_id=recruitment["creator_id"],
-        participants=[dict(p) for p in participants],
+        participants=participant_dicts,
+        creator_name=_resolve_display_name(guild, recruitment["creator_id"]),
     )
 
 
