@@ -27,12 +27,13 @@ class AsoBot(commands.Bot):
             self.add_view(RecruitView(record["id"]))
         print(f"[AsoBot] Persistent View {len(rows)}件再登録完了")
 
-        await self.load_extension("cogs.recruit")
-        print("[AsoBot] cogs.recruit 読み込み完了")
-        await self.load_extension("cogs.notifications")
-        print("[AsoBot] cogs.notifications 読み込み完了")
-        await self.load_extension("cogs.panel")
-        print("[AsoBot] cogs.panel 読み込み完了")
+        for ext in ("cogs.recruit", "cogs.notifications", "cogs.panel"):
+            try:
+                await self.load_extension(ext)
+                print(f"[AsoBot] {ext} 読み込み完了")
+            except Exception as e:
+                print(f"[AsoBot] {ext} 読み込み失敗: {e}", flush=True)
+                import traceback; traceback.print_exc()
 
         from cogs.panel import RulesView, RolePanelView
         panels = await pool.fetch("SELECT id, panel_type FROM role_panels")
@@ -46,14 +47,19 @@ class AsoBot(commands.Bot):
                 self.add_view(RolePanelView(p["id"], [dict(b) for b in buttons]))
         print(f"[AsoBot] パネルView {len(panels)}件再登録完了")
 
-        await self.tree.sync()
-        print("[AsoBot] スラッシュコマンド同期完了")
         start_scheduler(self)
         print("[AsoBot] スケジューラ起動完了")
 
     async def on_ready(self):
         print(f"[AsoBot] {self.user} としてログインしました")
         print(f"[AsoBot] {len(self.guilds)} サーバーに接続中")
+        for guild in self.guilds:
+            try:
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                print(f"[AsoBot] {guild.name}: {len(synced)}コマンド同期完了")
+            except Exception as e:
+                print(f"[AsoBot] {guild.name}: 同期失敗 {e}")
 
 
 async def main():
