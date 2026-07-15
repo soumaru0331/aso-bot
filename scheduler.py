@@ -8,8 +8,26 @@ NOTIFY_MINUTES = [60, 30, 15, 10, 5]
 
 def start_scheduler(bot) -> None:
     scheduler.start()
+    scheduler.add_job(
+        _db_keepalive,
+        trigger="interval",
+        hours=6,
+        id="db_keepalive",
+        replace_existing=True,
+    )
     import asyncio
     asyncio.create_task(_reschedule_pending(bot))
+
+
+async def _db_keepalive() -> None:
+    """Supabase無料プランの自動一時停止（1週間無活動）を防ぐ定期クエリ。"""
+    from database import get_pool
+    try:
+        pool = await get_pool()
+        await pool.fetchval("SELECT 1")
+        print("[Scheduler] DB keepalive OK", flush=True)
+    except Exception as e:
+        print(f"[Scheduler] DB keepalive 失敗: {e}", flush=True)
 
 
 async def _reschedule_pending(bot) -> None:

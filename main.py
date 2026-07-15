@@ -16,7 +16,13 @@ class AsoBot(commands.Bot):
 
     async def setup_hook(self):
         print("[AsoBot] setup_hook 開始")
-        await init_db()
+        while True:
+            try:
+                await init_db()
+                break
+            except Exception as e:
+                print(f"[AsoBot] DB接続失敗（60秒後に再試行）: {e}", flush=True)
+                await asyncio.sleep(60)
         print("[AsoBot] DB初期化完了")
 
         pool = await get_pool()
