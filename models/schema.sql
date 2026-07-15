@@ -37,3 +37,23 @@ CREATE TABLE IF NOT EXISTS user_settings (
     user_id TEXT PRIMARY KEY,
     notify_minutes INTEGER NOT NULL DEFAULT 10
 );
+
+CREATE TABLE IF NOT EXISTS role_panels (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    message_id TEXT,
+    panel_type TEXT NOT NULL DEFAULT 'role',
+    title TEXT NOT NULL,
+    description TEXT,
+    color INTEGER NOT NULL DEFAULT 5793266,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS role_panel_buttons (
+    id SERIAL PRIMARY KEY,
+    panel_id INTEGER NOT NULL,
+    role_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    FOREIGN KEY(panel_id) REFERENCES role_panels(id)
+);

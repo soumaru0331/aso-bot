@@ -26,10 +26,26 @@ class AsoBot(commands.Bot):
             self.add_view(RecruitView(record["id"]))
         print(f"[AsoBot] Persistent View {len(rows)}件再登録完了")
 
+    async def _restore_panel_views(self, pool) -> None:
+        from cogs.panel import RulesView, RolePanelView
+        panels = await pool.fetch("SELECT id, panel_type FROM role_panels")
+        for p in panels:
+            buttons = await pool.fetch(
+                "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1", p["id"]
+            )
+            if p["panel_type"] == "rules" and buttons:
+                self.add_view(RulesView(p["id"], int(buttons[0]["role_id"])))
+            elif p["panel_type"] == "role":
+                self.add_view(RolePanelView(p["id"], [dict(b) for b in buttons]))
+        print(f"[AsoBot] パネルView {len(panels)}件再登録完了")
+
         await self.load_extension("cogs.recruit")
         print("[AsoBot] cogs.recruit 読み込み完了")
         await self.load_extension("cogs.notifications")
         print("[AsoBot] cogs.notifications 読み込み完了")
+        await self.load_extension("cogs.panel")
+        print("[AsoBot] cogs.panel 読み込み完了")
+        await self._restore_panel_views(pool)
         start_scheduler(self)
         print("[AsoBot] スケジューラ起動完了")
 
