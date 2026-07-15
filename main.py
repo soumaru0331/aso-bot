@@ -30,14 +30,18 @@ class AsoBot(commands.Bot):
         print("[AsoBot] cogs.recruit 読み込み完了")
         await self.load_extension("cogs.notifications")
         print("[AsoBot] cogs.notifications 読み込み完了")
-        await self.tree.sync()
-        print("[AsoBot] スラッシュコマンド同期完了")
         start_scheduler(self)
         print("[AsoBot] スケジューラ起動完了")
 
     async def on_ready(self):
         print(f"[AsoBot] {self.user} としてログインしました")
         print(f"[AsoBot] {len(self.guilds)} サーバーに接続中")
+
+    @commands.command(name="sync")
+    @commands.is_owner()
+    async def sync_commands(self, ctx):
+        await self.tree.sync()
+        await ctx.send("スラッシュコマンドを同期しました。")
 
 
 async def main():

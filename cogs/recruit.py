@@ -283,31 +283,35 @@ class JoinButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                recruitment = await conn.fetchrow(
-                    "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-                )
-                if not recruitment or recruitment["status"] != "open":
-                    await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                    return
-                if not await _check_role(interaction, recruitment["required_role_name"]):
-                    return
-                if not await _check_capacity(interaction, conn, self.recruitment_id, recruitment["max_players"]):
-                    return
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    recruitment = await conn.fetchrow(
+                        "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+                    )
+                    if not recruitment or recruitment["status"] != "open":
+                        await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                        return
+                    if not await _check_role(interaction, recruitment["required_role_name"]):
+                        return
+                    if not await _check_capacity(interaction, conn, self.recruitment_id, recruitment["max_players"]):
+                        return
 
-                now_iso = datetime.now(timezone.utc).isoformat()
-                await conn.execute(
-                    "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
-                    "VALUES ($1, $2, 'confirmed', $3) "
-                    "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                    "join_type='confirmed', reason=NULL, available_until=NULL, joined_at=$3",
-                    self.recruitment_id, str(interaction.user.id), now_iso,
-                )
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    await conn.execute(
+                        "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
+                        "VALUES ($1, $2, 'confirmed', $3) "
+                        "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
+                        "join_type='confirmed', reason=NULL, available_until=NULL, joined_at=$3",
+                        self.recruitment_id, str(interaction.user.id), now_iso,
+                    )
 
-        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
-        await interaction.response.edit_message(embed=embed, view=self.view)
+            embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        except Exception as e:
+            print(f"[JoinButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 class SubButton(discord.ui.Button):
@@ -319,28 +323,32 @@ class SubButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            recruitment = await conn.fetchrow(
-                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-            )
-            if not recruitment or recruitment["status"] != "open":
-                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                return
-            if not await _check_role(interaction, recruitment["required_role_name"]):
-                return
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                recruitment = await conn.fetchrow(
+                    "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+                )
+                if not recruitment or recruitment["status"] != "open":
+                    await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                    return
+                if not await _check_role(interaction, recruitment["required_role_name"]):
+                    return
 
-            now_iso = datetime.now(timezone.utc).isoformat()
-            await conn.execute(
-                "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
-                "VALUES ($1, $2, 'substitute', $3) "
-                "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
-                "join_type='substitute', reason=NULL, available_until=NULL, joined_at=$3",
-                self.recruitment_id, str(interaction.user.id), now_iso,
-            )
+                now_iso = datetime.now(timezone.utc).isoformat()
+                await conn.execute(
+                    "INSERT INTO participants (recruitment_id, user_id, join_type, joined_at) "
+                    "VALUES ($1, $2, 'substitute', $3) "
+                    "ON CONFLICT(recruitment_id, user_id) DO UPDATE SET "
+                    "join_type='substitute', reason=NULL, available_until=NULL, joined_at=$3",
+                    self.recruitment_id, str(interaction.user.id), now_iso,
+                )
 
-        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
-        await interaction.response.edit_message(embed=embed, view=self.view)
+            embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        except Exception as e:
+            print(f"[SubButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 class LateButton(discord.ui.Button):
@@ -352,17 +360,21 @@ class LateButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        recruitment = await pool.fetchrow(
-            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-        )
-        if not recruitment or recruitment["status"] != "open":
-            await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-            return
-        if not await _check_role(interaction, recruitment["required_role_name"]):
-            return
-        modal = LateModal(self.recruitment_id, interaction.message)
-        await interaction.response.send_modal(modal)
+        try:
+            pool = await get_pool()
+            recruitment = await pool.fetchrow(
+                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+            )
+            if not recruitment or recruitment["status"] != "open":
+                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                return
+            if not await _check_role(interaction, recruitment["required_role_name"]):
+                return
+            modal = LateModal(self.recruitment_id, interaction.message)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            print(f"[LateButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 class PartialButton(discord.ui.Button):
@@ -374,17 +386,21 @@ class PartialButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        recruitment = await pool.fetchrow(
-            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-        )
-        if not recruitment or recruitment["status"] != "open":
-            await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-            return
-        if not await _check_role(interaction, recruitment["required_role_name"]):
-            return
-        modal = PartialModal(self.recruitment_id, interaction.message)
-        await interaction.response.send_modal(modal)
+        try:
+            pool = await get_pool()
+            recruitment = await pool.fetchrow(
+                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+            )
+            if not recruitment or recruitment["status"] != "open":
+                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                return
+            if not await _check_role(interaction, recruitment["required_role_name"]):
+                return
+            modal = PartialModal(self.recruitment_id, interaction.message)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            print(f"[PartialButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 class CancelButton(discord.ui.Button):
@@ -396,24 +412,28 @@ class CancelButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            recruitment = await conn.fetchrow(
-                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-            )
-            if not recruitment or recruitment["status"] != "open":
-                await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
-                return
-            if not await _check_cancel_deadline(interaction, recruitment):
-                return
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                recruitment = await conn.fetchrow(
+                    "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+                )
+                if not recruitment or recruitment["status"] != "open":
+                    await interaction.response.send_message("この募集は終了しています。", ephemeral=True)
+                    return
+                if not await _check_cancel_deadline(interaction, recruitment):
+                    return
 
-            await conn.execute(
-                "DELETE FROM participants WHERE recruitment_id = $1 AND user_id = $2",
-                self.recruitment_id, str(interaction.user.id),
-            )
+                await conn.execute(
+                    "DELETE FROM participants WHERE recruitment_id = $1 AND user_id = $2",
+                    self.recruitment_id, str(interaction.user.id),
+                )
 
-        embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
-        await interaction.response.edit_message(embed=embed, view=self.view)
+            embed = await _build_embed_from_db(self.recruitment_id, interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        except Exception as e:
+            print(f"[CancelButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 # ──────────────────────────────────────────────
@@ -429,35 +449,39 @@ class DeleteButton(discord.ui.Button):
         self.recruitment_id = recruitment_id
 
     async def callback(self, interaction: discord.Interaction):
-        pool = await get_pool()
-        recruitment = await pool.fetchrow(
-            "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
-        )
-        if not recruitment:
-            await interaction.response.send_message("この募集は既に削除されています。", ephemeral=True)
-            return
+        try:
+            pool = await get_pool()
+            recruitment = await pool.fetchrow(
+                "SELECT * FROM recruitments WHERE id = $1", self.recruitment_id
+            )
+            if not recruitment:
+                await interaction.response.send_message("この募集は既に削除されています。", ephemeral=True)
+                return
 
-        is_creator = str(interaction.user.id) == recruitment["creator_id"]
-        is_admin = interaction.user.guild_permissions.administrator or \
-                   interaction.user.guild_permissions.manage_guild
-        if not is_creator and not is_admin:
-            await interaction.response.send_message("募集の作成者か管理者のみ削除できます。", ephemeral=True)
-            return
+            is_creator = str(interaction.user.id) == recruitment["creator_id"]
+            is_admin = interaction.user.guild_permissions.administrator or \
+                       interaction.user.guild_permissions.manage_guild
+            if not is_creator and not is_admin:
+                await interaction.response.send_message("募集の作成者か管理者のみ削除できます。", ephemeral=True)
+                return
 
-        cancel_jobs(self.recruitment_id)
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "DELETE FROM participants WHERE recruitment_id = $1", self.recruitment_id
-                )
-                await conn.execute(
-                    "DELETE FROM notifications WHERE recruitment_id = $1", self.recruitment_id
-                )
-                await conn.execute(
-                    "DELETE FROM recruitments WHERE id = $1", self.recruitment_id
-                )
+            cancel_jobs(self.recruitment_id)
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "DELETE FROM participants WHERE recruitment_id = $1", self.recruitment_id
+                    )
+                    await conn.execute(
+                        "DELETE FROM notifications WHERE recruitment_id = $1", self.recruitment_id
+                    )
+                    await conn.execute(
+                        "DELETE FROM recruitments WHERE id = $1", self.recruitment_id
+                    )
 
-        await interaction.message.delete()
+            await interaction.message.delete()
+        except Exception as e:
+            print(f"[DeleteButton] エラー: {e}", flush=True)
+            await _safe_error_response(interaction)
 
 
 class RecruitView(discord.ui.View):
@@ -474,6 +498,17 @@ class RecruitView(discord.ui.View):
 # ──────────────────────────────────────────────
 # ヘルパー関数
 # ──────────────────────────────────────────────
+
+async def _safe_error_response(interaction: discord.Interaction) -> None:
+    msg = "エラーが発生しました。もう一度お試しください。"
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
+    except Exception:
+        pass
+
 
 async def _create_recruitment(
     interaction: discord.Interaction,
