@@ -19,14 +19,21 @@ class AsoBot(commands.Bot):
         await init_db()
         print("[AsoBot] DB初期化完了")
 
-        from cogs.recruit import RecruitView
         pool = await get_pool()
+
+        from cogs.recruit import RecruitView
         rows = await pool.fetch("SELECT id FROM recruitments WHERE status = 'open'")
         for record in rows:
             self.add_view(RecruitView(record["id"]))
         print(f"[AsoBot] Persistent View {len(rows)}件再登録完了")
 
-    async def _restore_panel_views(self, pool) -> None:
+        await self.load_extension("cogs.recruit")
+        print("[AsoBot] cogs.recruit 読み込み完了")
+        await self.load_extension("cogs.notifications")
+        print("[AsoBot] cogs.notifications 読み込み完了")
+        await self.load_extension("cogs.panel")
+        print("[AsoBot] cogs.panel 読み込み完了")
+
         from cogs.panel import RulesView, RolePanelView
         panels = await pool.fetch("SELECT id, panel_type FROM role_panels")
         for p in panels:
@@ -39,25 +46,14 @@ class AsoBot(commands.Bot):
                 self.add_view(RolePanelView(p["id"], [dict(b) for b in buttons]))
         print(f"[AsoBot] パネルView {len(panels)}件再登録完了")
 
-        await self.load_extension("cogs.recruit")
-        print("[AsoBot] cogs.recruit 読み込み完了")
-        await self.load_extension("cogs.notifications")
-        print("[AsoBot] cogs.notifications 読み込み完了")
-        await self.load_extension("cogs.panel")
-        print("[AsoBot] cogs.panel 読み込み完了")
-        await self._restore_panel_views(pool)
+        await self.tree.sync()
+        print("[AsoBot] スラッシュコマンド同期完了")
         start_scheduler(self)
         print("[AsoBot] スケジューラ起動完了")
 
     async def on_ready(self):
         print(f"[AsoBot] {self.user} としてログインしました")
         print(f"[AsoBot] {len(self.guilds)} サーバーに接続中")
-
-    @commands.command(name="sync")
-    @commands.is_owner()
-    async def sync_commands(self, ctx):
-        await self.tree.sync()
-        await ctx.send("スラッシュコマンドを同期しました。")
 
 
 async def main():
