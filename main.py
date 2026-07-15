@@ -13,6 +13,7 @@ class AsoBot(commands.Bot):
         intents = discord.Intents.default()
         intents.members = True
         super().__init__(command_prefix="!", intents=intents)
+        self._commands_synced = False
 
     async def setup_hook(self):
         print("[AsoBot] setup_hook 開始")
@@ -48,7 +49,7 @@ class AsoBot(commands.Bot):
                 "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1", p["id"]
             )
             if p["panel_type"] == "rules" and buttons:
-                self.add_view(RulesView(p["id"], int(buttons[0]["role_id"])))
+                self.add_view(RulesView(p["id"], int(buttons[0]["role_id"]), buttons[0]["label"]))
             elif p["panel_type"] == "role":
                 self.add_view(RolePanelView(p["id"], [dict(b) for b in buttons]))
         print(f"[AsoBot] パネルView {len(panels)}件再登録完了")
@@ -59,6 +60,9 @@ class AsoBot(commands.Bot):
     async def on_ready(self):
         print(f"[AsoBot] {self.user} としてログインしました")
         print(f"[AsoBot] {len(self.guilds)} サーバーに接続中")
+        if self._commands_synced:
+            return
+        self._commands_synced = True
         for guild in self.guilds:
             try:
                 self.tree.copy_global_to(guild=guild)
@@ -66,6 +70,25 @@ class AsoBot(commands.Bot):
                 print(f"[AsoBot] {guild.name}: {len(synced)}コマンド同期完了")
             except Exception as e:
                 print(f"[AsoBot] {guild.name}: 同期失敗 {e}")
+        # 過去に登録したグローバルコマンドを削除（サーバー別と二重表示になるため）
+        try:
+            global_cmds = list(self.tree.get_commands())
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            # ローカルツリーには戻しておく（新サーバー参加時のコピー元として必要）
+            for cmd in global_cmds:
+                self.tree.add_command(cmd)
+            print("[AsoBot] グローバルコマンド削除完了（重複解消）")
+        except Exception as e:
+            print(f"[AsoBot] グローバルコマンド削除失敗: {e}")
+
+    async def on_guild_join(self, guild):
+        try:
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            print(f"[AsoBot] 新サーバー {guild.name}: コマンド同期完了")
+        except Exception as e:
+            print(f"[AsoBot] {guild.name}: 同期失敗 {e}")
 
 
 async def main():
