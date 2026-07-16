@@ -110,6 +110,79 @@ class RoleToggleButton(discord.ui.Button):
         await _toggle_role(interaction, self.role_id)
 
 
+class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
+    def __init__(self, panel_id: int, current_title: str, current_body: str | None, panel_type: str, color: int):
+        super().__init__()
+        self.panel_id = panel_id
+        self.panel_type = panel_type
+        self.color = color
+        self.new_title = discord.ui.TextInput(
+            label="パネルタイトル", default=current_title, max_length=100
+        )
+        self.new_body = discord.ui.TextInput(
+            label="本文", default=current_body or "", max_length=1500,
+            style=discord.TextStyle.paragraph, required=(panel_type != "role")
+        )
+        self.add_item(self.new_title)
+        self.add_item(self.new_body)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            title = self.new_title.value.strip()
+            body = self.new_body.value.strip() or None
+
+            pool = await get_pool()
+            await pool.execute(
+                "UPDATE role_panels SET title = $1, description = $2 WHERE id = $3",
+                title, body, self.panel_id,
+            )
+
+            embed = discord.Embed(title=title, description=body, color=self.color)
+            if self.panel_type == "role":
+                embed.set_footer(text="ボタンをもう一度押すとロールが外れます")
+            await interaction.message.edit(embed=embed)
+            await interaction.response.send_message("✅ パネルを更新しました！", ephemeral=True)
+        except Exception as e:
+            print(f"[PanelEditModal] エラー: {e}", flush=True)
+            try:
+                await interaction.response.send_message("更新に失敗しました。", ephemeral=True)
+            except Exception:
+                pass
+
+
+class PanelEditButton(discord.ui.Button):
+    def __init__(self, panel_id: int, row: int):
+        super().__init__(
+            label="✏️ 編集",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"panel:edit:{panel_id}",
+            row=row,
+        )
+        self.panel_id = panel_id
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            if not _can_manage_panel(interaction.user):
+                await interaction.response.send_message(
+                    "パネルの編集は管理者（ロールの管理権限）のみ可能です。", ephemeral=True
+                )
+                return
+            pool = await get_pool()
+            panel = await pool.fetchrow(
+                "SELECT title, description, panel_type, color FROM role_panels WHERE id = $1",
+                self.panel_id,
+            )
+            if not panel:
+                await interaction.response.send_message("このパネルはDBに存在しません。", ephemeral=True)
+                return
+            await interaction.response.send_modal(PanelEditModal(
+                self.panel_id, panel["title"], panel["description"],
+                panel["panel_type"], panel["color"],
+            ))
+        except Exception as e:
+            print(f"[PanelEditButton] エラー: {e}", flush=True)
+
+
 class PanelDeleteButton(discord.ui.Button):
     def __init__(self, panel_id: int, row: int):
         super().__init__(
@@ -143,6 +216,7 @@ class RulesView(discord.ui.View):
     def __init__(self, panel_id: int, role_id: int, button_label: str | None = None):
         super().__init__(timeout=None)
         self.add_item(RulesAgreeButton(panel_id, role_id, button_label or "✅ 同意してロールを受け取る"))
+        self.add_item(PanelEditButton(panel_id, row=1))
         self.add_item(PanelDeleteButton(panel_id, row=1))
 
 
@@ -156,7 +230,15 @@ class RolePanelView(discord.ui.View):
                 label=b["label"],
                 row=i // 5,
             ))
+        self.add_item(PanelEditButton(panel_id, row=4))
         self.add_item(PanelDeleteButton(panel_id, row=4))
+
+
+class TextPanelView(discord.ui.View):
+    def __init__(self, panel_id: int):
+        super().__init__(timeout=None)
+        self.add_item(PanelEditButton(panel_id, row=0))
+        self.add_item(PanelDeleteButton(panel_id, row=0))
 
 
 # ──────────────────────────────────────────────
@@ -382,6 +464,82 @@ async def _post_role_panel(interaction: discord.Interaction, v: RolePanelSetupVi
 
 
 # ──────────────────────────────────────────────
+# テキストパネル（お知らせ用）作成フロー
+# ──────────────────────────────────────────────
+
+class TextPanelModal(discord.ui.Modal, title="パネルを作成"):
+    panel_title = discord.ui.TextInput(
+        label="パネルタイトル", placeholder="例: 📢 お知らせ", max_length=100
+    )
+    body = discord.ui.TextInput(
+        label="本文", placeholder="パネルに表示する内容を入力...",
+        style=discord.TextStyle.paragraph, max_length=1500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        view = TextPanelSetupView(
+            title=self.panel_title.value.strip(),
+            body=self.body.value.strip(),
+        )
+        await interaction.response.send_message(
+            "🎨 パネルの色を選んでください：", view=view, ephemeral=True
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(f"[TextPanelModal] on_error: {error}", flush=True)
+        try:
+            await interaction.response.send_message("エラーが発生しました。", ephemeral=True)
+        except Exception:
+            pass
+
+
+class TextPanelSetupView(discord.ui.View):
+    def __init__(self, title: str, body: str):
+        super().__init__(timeout=300)
+        self.title = title
+        self.body = body
+        self.color = DEFAULT_COLOR
+        self.add_item(ColorSelect(row=0))
+        self.add_item(self._make_confirm())
+
+    def _make_confirm(self):
+        btn = discord.ui.Button(label="✅ パネルを作成", style=discord.ButtonStyle.success, row=1)
+        async def cb(interaction: discord.Interaction):
+            try:
+                await _post_text_panel(interaction, self)
+            except Exception as e:
+                print(f"[TextPanelSetup] エラー: {e}", flush=True)
+                try:
+                    await interaction.response.send_message("パネル作成に失敗しました。", ephemeral=True)
+                except Exception:
+                    pass
+        btn.callback = cb
+        return btn
+
+
+async def _post_text_panel(interaction: discord.Interaction, v: TextPanelSetupView):
+    now_iso = datetime.now(timezone.utc).isoformat()
+    pool = await get_pool()
+
+    panel_id = await pool.fetchval(
+        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, created_at) "
+        "VALUES ($1, $2, 'text', $3, $4, $5, $6) RETURNING id",
+        str(interaction.guild_id), str(interaction.channel_id),
+        v.title, v.body, v.color, now_iso,
+    )
+
+    embed = discord.Embed(title=v.title, description=v.body, color=v.color)
+    panel_view = TextPanelView(panel_id)
+    message = await interaction.channel.send(embed=embed, view=panel_view)
+
+    await pool.execute(
+        "UPDATE role_panels SET message_id = $1 WHERE id = $2",
+        str(message.id), panel_id,
+    )
+    await interaction.response.edit_message(content="✅ パネルを作成しました！", view=None)
+
+
+# ──────────────────────────────────────────────
 # Cog
 # ──────────────────────────────────────────────
 
@@ -398,6 +556,11 @@ class Panel(commands.Cog):
     @app_commands.default_permissions(manage_roles=True)
     async def rolepanel(self, interaction: discord.Interaction):
         await interaction.response.send_modal(RolePanelModal())
+
+    @app_commands.command(name="panel", description="色付きのお知らせパネルを作成します（編集可能）")
+    @app_commands.default_permissions(manage_roles=True)
+    async def panel(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(TextPanelModal())
 
 
 async def setup(bot: commands.Bot):
