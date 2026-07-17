@@ -113,12 +113,12 @@ class RoleToggleButton(discord.ui.Button):
 class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
     def __init__(self, panel_id: int, current_title: str, current_body: str | None,
                  panel_type: str, color: int, button_label: str | None = None,
-                 role_id: int | None = None):
+                 message: discord.Message | None = None):
         super().__init__()
         self.panel_id = panel_id
         self.panel_type = panel_type
         self.color = color
-        self.role_id = role_id
+        self.message = message
         self.new_title = discord.ui.TextInput(
             label="パネルタイトル", default=current_title, max_length=100
         )
@@ -138,39 +138,124 @@ class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            title = self.new_title.value.strip()
-            body = self.new_body.value.strip() or None
-
-            pool = await get_pool()
-            await pool.execute(
-                "UPDATE role_panels SET title = $1, description = $2 WHERE id = $3",
-                title, body, self.panel_id,
-            )
-
-            embed = discord.Embed(title=title, description=body, color=self.color)
-            new_view = None
-            if self.panel_type == "role":
-                embed.set_footer(text="ボタンをもう一度押すとロールが外れます")
-            elif self.panel_type == "rules" and self.new_button_label is not None:
+            label = None
+            if self.new_button_label is not None:
                 label = self.new_button_label.value.strip() or "✅ 同意してロールを受け取る"
-                await pool.execute(
-                    "UPDATE role_panel_buttons SET label = $1 WHERE panel_id = $2",
-                    label, self.panel_id,
-                )
-                if self.role_id:
-                    new_view = RulesView(self.panel_id, self.role_id, label)
-
-            if new_view is not None:
-                await interaction.message.edit(embed=embed, view=new_view)
-            else:
-                await interaction.message.edit(embed=embed)
-            await interaction.response.send_message("✅ パネルを更新しました！", ephemeral=True)
+            view = PanelEditSetupView(
+                panel_id=self.panel_id,
+                panel_type=self.panel_type,
+                message=self.message or interaction.message,
+                new_title=self.new_title.value.strip(),
+                new_body=self.new_body.value.strip() or None,
+                new_button_label=label,
+                current_color=self.color,
+            )
+            await interaction.response.send_message(
+                "🎨 色やロールも変える場合は選択してください。そのままなら「✅ 更新」：",
+                view=view, ephemeral=True,
+            )
         except Exception as e:
             print(f"[PanelEditModal] エラー: {e}", flush=True)
             try:
-                await interaction.response.send_message("更新に失敗しました。", ephemeral=True)
+                await interaction.response.send_message("エラーが発生しました。", ephemeral=True)
             except Exception:
                 pass
+
+
+class PanelEditSetupView(discord.ui.View):
+    """編集2段階目: 色・ロールの選び直し（任意）→ 更新確定。"""
+
+    def __init__(self, panel_id: int, panel_type: str, message: discord.Message,
+                 new_title: str, new_body: str | None, new_button_label: str | None,
+                 current_color: int):
+        super().__init__(timeout=300)
+        self.panel_id = panel_id
+        self.panel_type = panel_type
+        self.message = message
+        self.new_title = new_title
+        self.new_body = new_body
+        self.new_button_label = new_button_label
+        self.color = current_color
+        self.selected_roles: list[discord.Role] | None = None  # None = 変更なし
+        self.add_item(ColorSelect(row=0))
+        if panel_type == "rules":
+            self.add_item(self._make_role_select("🔑 付与ロールを変更...（変更しない場合は触らない）", 1))
+        elif panel_type == "role":
+            self.add_item(self._make_role_select("🔑 ロール構成を選び直す...（変更しない場合は触らない）", 20))
+        self.add_item(self._make_confirm())
+
+    def _make_role_select(self, placeholder: str, max_values: int):
+        select = discord.ui.RoleSelect(
+            placeholder=placeholder, min_values=0, max_values=max_values, row=1
+        )
+        async def cb(interaction: discord.Interaction):
+            self.selected_roles = list(select.values) if select.values else None
+            await interaction.response.defer()
+        select.callback = cb
+        return select
+
+    def _make_confirm(self):
+        btn = discord.ui.Button(label="✅ 更新", style=discord.ButtonStyle.success, row=2)
+        async def cb(interaction: discord.Interaction):
+            try:
+                await _apply_panel_edit(interaction, self)
+            except Exception as e:
+                print(f"[PanelEditSetup] エラー: {e}", flush=True)
+                try:
+                    await interaction.response.send_message("更新に失敗しました。", ephemeral=True)
+                except Exception:
+                    pass
+        btn.callback = cb
+        return btn
+
+
+async def _apply_panel_edit(interaction: discord.Interaction, v: PanelEditSetupView):
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE role_panels SET title = $1, description = $2, color = $3 WHERE id = $4",
+        v.new_title, v.new_body, v.color, v.panel_id,
+    )
+
+    embed = discord.Embed(title=v.new_title, description=v.new_body, color=v.color)
+    new_view: discord.ui.View
+
+    if v.panel_type == "rules":
+        if v.selected_roles:
+            await pool.execute("DELETE FROM role_panel_buttons WHERE panel_id = $1", v.panel_id)
+            await pool.execute(
+                "INSERT INTO role_panel_buttons (panel_id, role_id, label) VALUES ($1, $2, $3)",
+                v.panel_id, str(v.selected_roles[0].id),
+                v.new_button_label or "✅ 同意してロールを受け取る",
+            )
+        elif v.new_button_label is not None:
+            await pool.execute(
+                "UPDATE role_panel_buttons SET label = $1 WHERE panel_id = $2",
+                v.new_button_label, v.panel_id,
+            )
+        btn_row = await pool.fetchrow(
+            "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1", v.panel_id
+        )
+        new_view = RulesView(v.panel_id, int(btn_row["role_id"]), btn_row["label"])
+
+    elif v.panel_type == "role":
+        embed.set_footer(text="ボタンをもう一度押すとロールが外れます")
+        if v.selected_roles:
+            await pool.execute("DELETE FROM role_panel_buttons WHERE panel_id = $1", v.panel_id)
+            for role in v.selected_roles[:20]:
+                await pool.execute(
+                    "INSERT INTO role_panel_buttons (panel_id, role_id, label) VALUES ($1, $2, $3)",
+                    v.panel_id, str(role.id), role.name,
+                )
+        buttons = await pool.fetch(
+            "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1", v.panel_id
+        )
+        new_view = RolePanelView(v.panel_id, [dict(b) for b in buttons])
+
+    else:
+        new_view = TextPanelView(v.panel_id)
+
+    await v.message.edit(embed=embed, view=new_view)
+    await interaction.response.edit_message(content="✅ パネルを更新しました！", view=None)
 
 
 class PanelEditButton(discord.ui.Button):
@@ -199,18 +284,17 @@ class PanelEditButton(discord.ui.Button):
                 await interaction.response.send_message("このパネルはDBに存在しません。", ephemeral=True)
                 return
             button_label = None
-            role_id = None
             if panel["panel_type"] == "rules":
                 btn_row = await pool.fetchrow(
-                    "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1",
+                    "SELECT label FROM role_panel_buttons WHERE panel_id = $1",
                     self.panel_id,
                 )
                 if btn_row:
                     button_label = btn_row["label"]
-                    role_id = int(btn_row["role_id"])
             await interaction.response.send_modal(PanelEditModal(
                 self.panel_id, panel["title"], panel["description"],
-                panel["panel_type"], panel["color"], button_label, role_id,
+                panel["panel_type"], panel["color"], button_label,
+                message=interaction.message,
             ))
         except Exception as e:
             print(f"[PanelEditButton] エラー: {e}", flush=True)
@@ -288,7 +372,8 @@ class ColorSelect(discord.ui.Select):
                          min_values=0, max_values=1, row=row)
 
     async def callback(self, interaction: discord.Interaction):
-        self.view.color = int(self.values[0]) if self.values else DEFAULT_COLOR
+        if self.values:
+            self.view.color = int(self.values[0])
         await interaction.response.defer()
 
 
