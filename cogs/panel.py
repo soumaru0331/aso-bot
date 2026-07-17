@@ -82,29 +82,47 @@ async def _toggle_role(interaction: discord.Interaction, role_id: int) -> None:
 # Persistent View 用ボタン
 # ──────────────────────────────────────────────
 
-class RulesAgreeButton(discord.ui.Button):
+class RulesAgreeButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"panel:rules:(?P<panel_id>\d+):(?P<role_id>\d+)",
+):
+    """custom_idパターンで動くためBot再起動・デプロイのタイミングに関係なく常に反応する。"""
+
     def __init__(self, panel_id: int, role_id: int, label: str = "✅ 同意してロールを受け取る"):
-        super().__init__(
+        super().__init__(discord.ui.Button(
             label=label,
             style=discord.ButtonStyle.success,
             custom_id=f"panel:rules:{panel_id}:{role_id}",
             row=0,
-        )
+        ))
+        self.panel_id = panel_id
         self.role_id = role_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
+        return cls(int(match["panel_id"]), int(match["role_id"]))
 
     async def callback(self, interaction: discord.Interaction):
         await _toggle_role(interaction, self.role_id)
 
 
-class RoleToggleButton(discord.ui.Button):
-    def __init__(self, panel_id: int, role_id: int, label: str, row: int):
-        super().__init__(
+class RoleToggleButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"panel:role:(?P<panel_id>\d+):(?P<role_id>\d+)",
+):
+    def __init__(self, panel_id: int, role_id: int, label: str = "ロール", row: int = 0):
+        super().__init__(discord.ui.Button(
             label=label,
             style=discord.ButtonStyle.primary,
             custom_id=f"panel:role:{panel_id}:{role_id}",
             row=row,
-        )
+        ))
+        self.panel_id = panel_id
         self.role_id = role_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
+        return cls(int(match["panel_id"]), int(match["role_id"]))
 
     async def callback(self, interaction: discord.Interaction):
         await _toggle_role(interaction, self.role_id)
@@ -258,15 +276,22 @@ async def _apply_panel_edit(interaction: discord.Interaction, v: PanelEditSetupV
     await interaction.response.edit_message(content="✅ パネルを更新しました！", view=None)
 
 
-class PanelEditButton(discord.ui.Button):
-    def __init__(self, panel_id: int, row: int):
-        super().__init__(
+class PanelEditButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"panel:edit:(?P<panel_id>\d+)",
+):
+    def __init__(self, panel_id: int, row: int = 0):
+        super().__init__(discord.ui.Button(
             label="✏️ 編集",
             style=discord.ButtonStyle.secondary,
             custom_id=f"panel:edit:{panel_id}",
             row=row,
-        )
+        ))
         self.panel_id = panel_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
+        return cls(int(match["panel_id"]))
 
     async def callback(self, interaction: discord.Interaction):
         try:
@@ -300,15 +325,22 @@ class PanelEditButton(discord.ui.Button):
             print(f"[PanelEditButton] エラー: {e}", flush=True)
 
 
-class PanelDeleteButton(discord.ui.Button):
-    def __init__(self, panel_id: int, row: int):
-        super().__init__(
+class PanelDeleteButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"panel:delete:(?P<panel_id>\d+)",
+):
+    def __init__(self, panel_id: int, row: int = 0):
+        super().__init__(discord.ui.Button(
             label="🗑 パネル削除",
             style=discord.ButtonStyle.secondary,
             custom_id=f"panel:delete:{panel_id}",
             row=row,
-        )
+        ))
         self.panel_id = panel_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match):
+        return cls(int(match["panel_id"]))
 
     async def callback(self, interaction: discord.Interaction):
         try:

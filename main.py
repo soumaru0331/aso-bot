@@ -42,19 +42,15 @@ class AsoBot(commands.Bot):
                 print(f"[AsoBot] {ext} 読み込み失敗: {e}", flush=True)
                 import traceback; traceback.print_exc()
 
-        from cogs.panel import RulesView, RolePanelView, TextPanelView
-        panels = await pool.fetch("SELECT id, panel_type FROM role_panels")
-        for p in panels:
-            buttons = await pool.fetch(
-                "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1", p["id"]
-            )
-            if p["panel_type"] == "rules" and buttons:
-                self.add_view(RulesView(p["id"], int(buttons[0]["role_id"]), buttons[0]["label"]))
-            elif p["panel_type"] == "role":
-                self.add_view(RolePanelView(p["id"], [dict(b) for b in buttons]))
-            elif p["panel_type"] == "text":
-                self.add_view(TextPanelView(p["id"]))
-        print(f"[AsoBot] パネルView {len(panels)}件再登録完了")
+        # パネルのボタンはDynamicItem（custom_idパターンマッチ）で処理するため
+        # 再起動タイミングやDB登録の遅れに関係なく常に反応する
+        from cogs.panel import (
+            RulesAgreeButton, RoleToggleButton, PanelEditButton, PanelDeleteButton,
+        )
+        self.add_dynamic_items(
+            RulesAgreeButton, RoleToggleButton, PanelEditButton, PanelDeleteButton,
+        )
+        print("[AsoBot] パネルDynamicItem登録完了")
 
         start_scheduler(self)
         print("[AsoBot] スケジューラ起動完了")
