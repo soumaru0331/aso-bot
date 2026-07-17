@@ -128,7 +128,7 @@
 <div class="hero">
   <h1>🎮 aso bot</h1>
   <p>Discordでゲームの仲間を簡単に集めよう。<br>スラッシュコマンド一つで募集を作成・管理できます。</p>
-  <a class="btn" href="https://discord.com/oauth2/authorize?client_id=1502300035210149979&permissions=52224&scope=bot%20applications.commands" target="_blank">
+  <a class="btn" href="https://discord.com/oauth2/authorize?client_id=1502300035210149979&permissions=1342261248&scope=bot%20applications.commands" target="_blank">
     サーバーに追加する
   </a>
 </div>
@@ -168,6 +168,26 @@
       <h3>辞退期限</h3>
       <p>「開始30分前まで辞退可能」のような辞退期限を設定可能。</p>
     </div>
+    <div class="feature">
+      <div class="icon">📜</div>
+      <h3>ルール同意パネル</h3>
+      <p><code>/rulespanel</code> でルールを表示し、同意ボタンを押した人にロールを自動付与。</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🎭</div>
+      <h3>ロール選択パネル</h3>
+      <p><code>/rolepanel</code> でボタン式のロール配布パネルを作成。最大20ロール、もう一度押すと解除。</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📢</div>
+      <h3>お知らせパネル</h3>
+      <p><code>/panel</code> で色付きのお知らせパネルを作成。あとから内容の編集も可能。</p>
+    </div>
+    <div class="feature">
+      <div class="icon">✏️</div>
+      <h3>パネル編集・削除</h3>
+      <p>すべてのパネルに編集・削除ボタン付き。管理者はいつでも内容を書き換えられます。</p>
+    </div>
   </div>
 
   <!-- How to use -->
@@ -179,7 +199,7 @@
       <h3>サーバーに Bot を追加</h3>
     </div>
     <div class="step-body">
-      <p>上の「サーバーに追加する」ボタンからBotを招待します。必要な権限はメッセージ送信・DM送信のみです。</p>
+      <p>上の「サーバーに追加する」ボタンからBotを招待します。ロールパネル機能を使うため「ロールの管理」権限を含みます。導入後、サーバー設定 → ロールで <strong>aso bot</strong> のロールを配布したいロールより上に移動してください。</p>
     </div>
   </div>
 
@@ -237,6 +257,35 @@
     <div class="cmd">
       <code>/notify [タイミング]</code>
       <p>開始前のDM通知タイミングを個人設定します。5分前・10分前（デフォルト）・15分前・30分前・60分前・オフから選択。</p>
+    </div>
+    <div class="cmd">
+      <code>/rulespanel</code>
+      <p>ルール同意パネルを作成します（要：ロールの管理権限）。タイトル・ルール本文・ボタン文言を入力し、色と付与ロールを選択。同意ボタンを押したメンバーにロールが付与されます（もう一度押すと解除）。</p>
+    </div>
+    <div class="cmd">
+      <code>/rolepanel</code>
+      <p>ボタン式ロール配布パネルを作成します（要：ロールの管理権限）。タイトル・説明を入力し、色と最大20個のロールを選択。メンバーはボタンで自由にロールを付け外しできます。</p>
+    </div>
+    <div class="cmd">
+      <code>/panel</code>
+      <p>色付きのお知らせパネルを作成します（要：ロールの管理権限）。タイトル・本文を入力して色を選ぶだけ。</p>
+    </div>
+  </div>
+
+  <!-- Panel edit -->
+  <h2 class="section-title">✏️ パネルの編集・削除</h2>
+  <div class="cmd-list">
+    <div class="cmd">
+      <code>✏️ 編集</code>
+      <p>パネル下部の編集ボタンを押すと、現在の内容が入力された状態でフォームが開きます。タイトル・本文（ルールパネルはボタン文言も）を書き換えて送信すると、その場でパネルが更新されます。</p>
+    </div>
+    <div class="cmd">
+      <code>🗑 パネル削除</code>
+      <p>パネルごと削除します。編集・削除とも「ロールの管理」権限を持つメンバーのみ操作できます。</p>
+    </div>
+    <div class="cmd">
+      <code>⚠️ ロールが付与できないとき</code>
+      <p>①Botに「ロールの管理」権限があるか、②サーバー設定 → ロールで aso bot のロールが配布対象ロールより<strong>上</strong>にあるか確認してください。</p>
     </div>
   </div>
 

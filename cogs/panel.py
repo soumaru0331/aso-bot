@@ -111,11 +111,14 @@ class RoleToggleButton(discord.ui.Button):
 
 
 class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
-    def __init__(self, panel_id: int, current_title: str, current_body: str | None, panel_type: str, color: int):
+    def __init__(self, panel_id: int, current_title: str, current_body: str | None,
+                 panel_type: str, color: int, button_label: str | None = None,
+                 role_id: int | None = None):
         super().__init__()
         self.panel_id = panel_id
         self.panel_type = panel_type
         self.color = color
+        self.role_id = role_id
         self.new_title = discord.ui.TextInput(
             label="パネルタイトル", default=current_title, max_length=100
         )
@@ -125,6 +128,13 @@ class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
         )
         self.add_item(self.new_title)
         self.add_item(self.new_body)
+        self.new_button_label = None
+        if panel_type == "rules":
+            self.new_button_label = discord.ui.TextInput(
+                label="ボタンのテキスト", default=button_label or "✅ 同意してロールを受け取る",
+                max_length=80, required=False
+            )
+            self.add_item(self.new_button_label)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -138,9 +148,22 @@ class PanelEditModal(discord.ui.Modal, title="パネルを編集"):
             )
 
             embed = discord.Embed(title=title, description=body, color=self.color)
+            new_view = None
             if self.panel_type == "role":
                 embed.set_footer(text="ボタンをもう一度押すとロールが外れます")
-            await interaction.message.edit(embed=embed)
+            elif self.panel_type == "rules" and self.new_button_label is not None:
+                label = self.new_button_label.value.strip() or "✅ 同意してロールを受け取る"
+                await pool.execute(
+                    "UPDATE role_panel_buttons SET label = $1 WHERE panel_id = $2",
+                    label, self.panel_id,
+                )
+                if self.role_id:
+                    new_view = RulesView(self.panel_id, self.role_id, label)
+
+            if new_view is not None:
+                await interaction.message.edit(embed=embed, view=new_view)
+            else:
+                await interaction.message.edit(embed=embed)
             await interaction.response.send_message("✅ パネルを更新しました！", ephemeral=True)
         except Exception as e:
             print(f"[PanelEditModal] エラー: {e}", flush=True)
@@ -175,9 +198,19 @@ class PanelEditButton(discord.ui.Button):
             if not panel:
                 await interaction.response.send_message("このパネルはDBに存在しません。", ephemeral=True)
                 return
+            button_label = None
+            role_id = None
+            if panel["panel_type"] == "rules":
+                btn_row = await pool.fetchrow(
+                    "SELECT role_id, label FROM role_panel_buttons WHERE panel_id = $1",
+                    self.panel_id,
+                )
+                if btn_row:
+                    button_label = btn_row["label"]
+                    role_id = int(btn_row["role_id"])
             await interaction.response.send_modal(PanelEditModal(
                 self.panel_id, panel["title"], panel["description"],
-                panel["panel_type"], panel["color"],
+                panel["panel_type"], panel["color"], button_label, role_id,
             ))
         except Exception as e:
             print(f"[PanelEditButton] エラー: {e}", flush=True)
