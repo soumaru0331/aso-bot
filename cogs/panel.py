@@ -27,6 +27,13 @@ def _can_manage_panel(user: discord.Member) -> bool:
     return p.administrator or p.manage_guild or p.manage_roles
 
 
+def _can_edit_panel(user: discord.Member, creator_id: str | None) -> bool:
+    """管理者、またはそのパネルの作成者なら編集・削除可能。"""
+    if _can_manage_panel(user):
+        return True
+    return creator_id is not None and str(user.id) == creator_id
+
+
 async def _toggle_role(interaction: discord.Interaction, role_id: int) -> None:
     """ロールの付与/解除。権限エラーは原因ごとに分かりやすく表示。"""
     try:
@@ -295,18 +302,18 @@ class PanelEditButton(
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            if not _can_manage_panel(interaction.user):
-                await interaction.response.send_message(
-                    "パネルの編集は管理者（ロールの管理権限）のみ可能です。", ephemeral=True
-                )
-                return
             pool = await get_pool()
             panel = await pool.fetchrow(
-                "SELECT title, description, panel_type, color FROM role_panels WHERE id = $1",
+                "SELECT title, description, panel_type, color, creator_id FROM role_panels WHERE id = $1",
                 self.panel_id,
             )
             if not panel:
                 await interaction.response.send_message("このパネルはDBに存在しません。", ephemeral=True)
+                return
+            if not _can_edit_panel(interaction.user, panel["creator_id"]):
+                await interaction.response.send_message(
+                    "パネルの編集は作成者か管理者のみ可能です。", ephemeral=True
+                )
                 return
             button_label = None
             if panel["panel_type"] == "rules":
@@ -344,12 +351,16 @@ class PanelDeleteButton(
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            if not _can_manage_panel(interaction.user):
+            pool = await get_pool()
+            panel = await pool.fetchrow(
+                "SELECT creator_id FROM role_panels WHERE id = $1", self.panel_id
+            )
+            creator_id = panel["creator_id"] if panel else None
+            if not _can_edit_panel(interaction.user, creator_id):
                 await interaction.response.send_message(
-                    "パネルの削除は管理者（ロールの管理権限）のみ可能です。", ephemeral=True
+                    "パネルの削除は作成者か管理者のみ可能です。", ephemeral=True
                 )
                 return
-            pool = await get_pool()
             await pool.execute("DELETE FROM role_panel_buttons WHERE panel_id = $1", self.panel_id)
             await pool.execute("DELETE FROM role_panels WHERE id = $1", self.panel_id)
             await interaction.message.delete()
@@ -489,10 +500,10 @@ async def _post_rules_panel(interaction: discord.Interaction, v: RulesSetupView)
     pool = await get_pool()
 
     panel_id = await pool.fetchval(
-        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, created_at) "
-        "VALUES ($1, $2, 'rules', $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, creator_id, created_at) "
+        "VALUES ($1, $2, 'rules', $3, $4, $5, $6, $7) RETURNING id",
         str(interaction.guild_id), str(interaction.channel_id),
-        v.title, v.rules_text, v.color, now_iso,
+        v.title, v.rules_text, v.color, str(interaction.user.id), now_iso,
     )
     await pool.execute(
         "INSERT INTO role_panel_buttons (panel_id, role_id, label) VALUES ($1, $2, $3)",
@@ -584,10 +595,10 @@ async def _post_role_panel(interaction: discord.Interaction, v: RolePanelSetupVi
     pool = await get_pool()
 
     panel_id = await pool.fetchval(
-        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, created_at) "
-        "VALUES ($1, $2, 'role', $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, creator_id, created_at) "
+        "VALUES ($1, $2, 'role', $3, $4, $5, $6, $7) RETURNING id",
         str(interaction.guild_id), str(interaction.channel_id),
-        v.title, v.description or None, v.color, now_iso,
+        v.title, v.description or None, v.color, str(interaction.user.id), now_iso,
     )
 
     buttons = []
@@ -672,10 +683,10 @@ async def _post_text_panel(interaction: discord.Interaction, v: TextPanelSetupVi
     pool = await get_pool()
 
     panel_id = await pool.fetchval(
-        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, created_at) "
-        "VALUES ($1, $2, 'text', $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO role_panels (guild_id, channel_id, panel_type, title, description, color, creator_id, created_at) "
+        "VALUES ($1, $2, 'text', $3, $4, $5, $6, $7) RETURNING id",
         str(interaction.guild_id), str(interaction.channel_id),
-        v.title, v.body, v.color, now_iso,
+        v.title, v.body, v.color, str(interaction.user.id), now_iso,
     )
 
     embed = discord.Embed(title=v.title, description=v.body, color=v.color)
@@ -707,8 +718,7 @@ class Panel(commands.Cog):
     async def rolepanel(self, interaction: discord.Interaction):
         await interaction.response.send_modal(RolePanelModal())
 
-    @app_commands.command(name="panel", description="色付きのお知らせパネルを作成します（編集可能）")
-    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.command(name="panel", description="色付きのお知らせパネルを作成します（誰でも使用可・作成者が編集可能）")
     async def panel(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TextPanelModal())
 

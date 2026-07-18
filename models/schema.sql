@@ -47,8 +47,11 @@ CREATE TABLE IF NOT EXISTS role_panels (
     title TEXT NOT NULL,
     description TEXT,
     color INTEGER NOT NULL DEFAULT 5793266,
+    creator_id TEXT,
     created_at TEXT NOT NULL
 );
+
+ALTER TABLE role_panels ADD COLUMN IF NOT EXISTS creator_id TEXT;
 
 CREATE TABLE IF NOT EXISTS role_panel_buttons (
     id SERIAL PRIMARY KEY,
